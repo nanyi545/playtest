@@ -1,2 +1,2 @@
-include ':app'
+include ':app', ':playerlib'
 rootProject.name='PlayTest'
