@@ -83,9 +83,13 @@ static SDL_Aout *func_open_audio_output(IJKFF_Pipeline *pipeline, FFPlayer *ffp)
 {
     SDL_Aout *aout = NULL;
     if (ffp->opensles) {
+        //如果打开了opensles，则用OpenSLES来创建音频输出设备
         aout = SDL_AoutAndroid_CreateForOpenSLES();
+        ALOGE("func_open_audio_output:OpenSLES");
     } else {
+        //否则，使用Android平台的AudioTrack来创建音频输出设备
         aout = SDL_AoutAndroid_CreateForAudioTrack();
+        ALOGE("func_open_audio_output:AudioTrack");
     }
     if (aout)
         SDL_AoutSetStereoVolume(aout, pipeline->opaque->left_volume, pipeline->opaque->right_volume);

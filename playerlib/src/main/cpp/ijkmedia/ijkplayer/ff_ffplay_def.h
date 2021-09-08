@@ -177,6 +177,10 @@ typedef struct PacketQueue {
     int alloc_count;
 
     int is_buffer_indicator;
+
+    //  logging purpose ...
+    int mediaType;   // 1 video / 2 audio
+
 } PacketQueue;
 
 // #define VIDEO_PICTURE_QUEUE_SIZE 3
@@ -229,10 +233,11 @@ typedef struct Frame {
     int uploaded;
 } Frame;
 
+//用数组作循环队列
 typedef struct FrameQueue {
     Frame queue[FRAME_QUEUE_SIZE];
-    int rindex;
-    int windex;
+    int rindex;  // read index
+    int windex;  // write index
     int size;
     int max_size;
     int keep_last;
@@ -273,12 +278,12 @@ typedef struct Decoder {
 } Decoder;
 
 typedef struct VideoState {
-    SDL_Thread *read_tid;
+    SDL_Thread *read_tid; //读线程
     SDL_Thread _read_tid;
-    AVInputFormat *iformat;
-    int abort_request;
-    int force_refresh;
-    int paused;
+    AVInputFormat *iformat; //输入格式
+    int abort_request; //停止请求
+    int force_refresh; //强制刷新
+    int paused; //暂停
     int last_paused;
     int queue_attachments_req;
     int seek_req;
@@ -291,17 +296,17 @@ typedef struct VideoState {
     AVFormatContext *ic;
     int realtime;
 
-    Clock audclk;
-    Clock vidclk;
-    Clock extclk;
+    Clock audclk; //音频时钟
+    Clock vidclk; //视频时钟
+    Clock extclk; //外部时钟
 
-    FrameQueue pictq;
-    FrameQueue subpq;
-    FrameQueue sampq;
+    FrameQueue pictq; //图片帧队列：解码后的视频数据
+    FrameQueue subpq; //字幕帧队列：解码后的字幕数据
+    FrameQueue sampq; //音频帧队列：解码后的音频数据
 
-    Decoder auddec;
-    Decoder viddec;
-    Decoder subdec;
+    Decoder auddec; //音频解码器
+    Decoder viddec; //视频解码器
+    Decoder subdec; //字幕解码器
 
     int audio_stream;
 
@@ -314,7 +319,7 @@ typedef struct VideoState {
     double audio_diff_threshold;
     int audio_diff_avg_count;
     AVStream *audio_st;
-    PacketQueue audioq;
+    PacketQueue audioq;  //音频包数据：未解码的音频数据，从demuxers输出
     int audio_hw_buf_size;
     uint8_t *audio_buf;
     uint8_t *audio_buf1;
@@ -372,7 +377,7 @@ typedef struct VideoState {
     int eof;
 
     char *filename;
-    int width, height, xleft, ytop;
+    int width, height, xleft, ytop;  //视频的：宽、高、左上角x坐标，左上角y坐标。和ffmpeg里面的是对应的。
     int step;
 
 #if CONFIG_AVFILTER

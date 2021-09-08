@@ -30,17 +30,27 @@
 #include "ff_ffplay.h"
 #include "ijkplayer.h"
 
+
 struct IjkMediaPlayer {
     volatile int ref_count;
+    //互斥锁，用于保证线程安全
     pthread_mutex_t mutex;
+
+    //ffplayer，位于ijkmedia/ijkplayer/ff_ffplay_def.h，他会直接调用ffmpeg的方法了
     FFPlayer *ffplayer;
 
+    //一个函数指针，指向的是谁？指向的其实就是刚才创建的message_loop，即消息循环函数
     int (*msg_loop)(void*);
+
+    //消息机制线程
     SDL_Thread *msg_thread;
     SDL_Thread _msg_thread;
 
+    //播放器状态，例如prepared,resumed,error,completed等
     int mp_state;
+    //字符串，就是一个播放url
     char *data_source;
+    //弱引用
     void *weak_thiz;
 
     int restart;

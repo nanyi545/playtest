@@ -51,6 +51,15 @@
 
 static JavaVM* g_jvm;
 
+
+/**
+ * http://www.cs.kent.edu/~ruttan/sysprog/lectures/multi-thread/pthread_mutex_init.html
+ *
+ * A mutex is a MUTual EXclusion device, and is useful for protecting shared data structures from concurrent modifications,
+ * and implementing critical sections and monitors.
+ *
+ *
+ */
 typedef struct player_fields_t {
     pthread_mutex_t mutex;
     jclass clazz;
@@ -743,14 +752,46 @@ LABEL_RETURN:
 static void
 IjkMediaPlayer_native_init(JNIEnv *env)
 {
-    MPTRACE("%s\n", __func__);
+
+    /**
+     * (C++11) The predefined identifier __func__ is implicitly defined as a string that contains the unqualified and unadorned name of
+     * the enclosing function. __func__ is mandated by the C++ standard and is not a Microsoft extension.
+     *
+     * https://docs.microsoft.com/en-us/cpp/cpp/func?view=msvc-160
+     */
+    MPTRACE("---999---%s\n", __func__);
 }
+
+/**
+ *
+ * https://stackoverflow.com/questions/56533288/why-is-typedef-struct-x-x-allowed
+ *
+ ???
+typedef struct point point;
+struct point {
+    int x;
+    int y;
+};
+
+The line typedef struct point point; does two things:
+It creates a forward declaration of struct point
+It creates a type alias for struct point called point.
+
+ */
+
 
 static void
 IjkMediaPlayer_native_setup(JNIEnv *env, jobject thiz, jobject weak_this)
 {
-    MPTRACE("%s\n", __func__);
+    MPTRACE("666  %s\n", __func__);
+    //创建IjkMediaPlayer，并传入message_loop()方法作为参数
+
+    // message_loop这个函数作为参数被传递，在这里依然还没有调用，即没有开启循环读队列。
+    // 猜想message_loop函数一定是被传递下去，在某个地方被调用了，并且需要在一个独立的线程中调用，
+    // 就像模拟Android的HandlerThread类做的那样，一个独立的线程中开启了循环。
     IjkMediaPlayer *mp = ijkmp_android_create(message_loop);
+
+
     JNI_CHECK_GOTO(mp, env, "java/lang/OutOfMemoryError", "mpjni: native_setup: ijkmp_create() failed", LABEL_RETURN);
 
     jni_set_media_player(env, thiz, mp);
@@ -879,10 +920,15 @@ fail:
     return found_codec_name;
 }
 
+//post_event（）方法会将事件从c层抛到java层的：
 inline static void post_event(JNIEnv *env, jobject weak_this, int what, int arg1, int arg2)
 {
     // MPTRACE("post_event(%p, %p, %d, %d, %d)", (void*)env, (void*) weak_this, what, arg1, arg2);
     J4AC_IjkMediaPlayer__postEventFromNative(env, weak_this, what, arg1, arg2, NULL);
+
+    // same as below ...
+//    J4AC_tv_danmaku_ijk_media_player_IjkMediaPlayer__postEventFromNative(env, weak_this, what, arg1, arg2, NULL);
+
     // MPTRACE("post_event()=void");
 }
 
@@ -893,6 +939,7 @@ inline static void post_event2(JNIEnv *env, jobject weak_this, int what, int arg
     // MPTRACE("post_event2()=void");
 }
 
+//message_loop_n函数中取消息，并用post_event调用jni方法把事件发送到java层
 static void message_loop_n(JNIEnv *env, IjkMediaPlayer *mp)
 {
     jobject weak_thiz = (jobject) ijkmp_get_weak_thiz(mp);
@@ -901,6 +948,7 @@ static void message_loop_n(JNIEnv *env, IjkMediaPlayer *mp)
     while (1) {
         AVMessage msg;
 
+        //取消息队列的消息，如果没有消息就阻塞，直到有消息被发到消息队列。
         int retval = ijkmp_get_msg(mp, &msg, 1);
         if (retval < 0)
             break;
@@ -910,6 +958,7 @@ static void message_loop_n(JNIEnv *env, IjkMediaPlayer *mp)
 
         switch (msg.what) {
         case FFP_MSG_FLUSH:
+            //调用post_event，把事件发送到java层。
             MPTRACE("FFP_MSG_FLUSH:\n");
             post_event(env, weak_thiz, MEDIA_NOP, 0, 0);
             break;
@@ -1030,6 +1079,8 @@ LABEL_RETURN:
     ;
 }
 
+
+// message_loop()方法创建了类似android的looper的消息机制
 static int message_loop(void *arg)
 {
     MPTRACE("%s\n", __func__);
@@ -1043,6 +1094,7 @@ static int message_loop(void *arg)
     IjkMediaPlayer *mp = (IjkMediaPlayer*) arg;
     JNI_CHECK_GOTO(mp, env, NULL, "mpjni: native_message_loop: null mp", LABEL_RETURN);
 
+    //开启类似Android的looper的消息机制。
     message_loop_n(env, mp);
 
 LABEL_RETURN:
@@ -1196,10 +1248,38 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved)
 
     // FindClass returns LocalReference
     IJK_FIND_JAVA_CLASS(env, g_clazz.clazz, JNI_CLASS_IJKPLAYER);
-    (*env)->RegisterNatives(env, g_clazz.clazz, g_methods, NELEM(g_methods) );
+    /**
+     *
+     *
+    IJK_FIND_JAVA_CLASS  -->
 
+    jclass clazz = (*env)->FindClass(env, JNI_CLASS_IJKPLAYER);
+    g_clazz.clazz = (*env)->NewGlobalRef(env, clazz);
+    (*env)->DeleteLocalRef(env, clazz);
+     *
+     */
+
+
+    (*env)->RegisterNatives(env, g_clazz.clazz, g_methods, NELEM(g_methods) );
+    /**
+     *
+     * https://stackoverflow.com/questions/1010645/what-does-the-registernatives-method-do
+     *
+     * map  native functions in java to c functions ...
+     *
+     */
+
+    //播放器全局初始化，注册ffmpeg的解码器，解封装器，加载外部库如openssl等
     ijkmp_global_init();
+
+
     ijkmp_global_set_inject_callback(inject_callback);
+
+    /**
+     *  #include "ijkplayer_android.h"
+     *  ---->
+     *  ijkplayer.h
+     */
 
     FFmpegApi_global_init(env);
     SDL_JNI_OnLoad(vm,reserved);
@@ -1213,3 +1293,128 @@ JNIEXPORT void JNI_OnUnload(JavaVM *jvm, void *reserved)
 
     pthread_mutex_destroy(&g_clazz.mutex);
 }
+
+/**
+
+入口
+ https://www.jianshu.com/nb/40971763
+
+----------------------------------------------
+
+ 理解ijkplayer（二）项目结构分析
+https://www.jianshu.com/p/b5a2584e03f1
+
+ 我们可以看到规则，每当java层调用jni方法例如：
+java调用的jni方法	 对应Ijkplayer内部的方法
+XXX	                 IjkMediaPlayer_XXX
+
+----
+
+ijkplayer_jni.c的每一个Jni映射方法几乎都是这样，拿到一个IjkMediaPlayer对象，然后跳转到ijkplayer.c中的函数。
+
+ijkplayer_jni.c是通过
+#include "ijkplayer_android.h"     而ijkplayer_android.h中，又
+#include "../ijkplayer.h"    所以，具备了调用 ijkpalyer.h的能力的
+
+ 方法对应
+ ijkplayer_jin.c	           ijkplayer.h / ijkpalyer.c
+IjkMediaPlayer_prepareAsync	   ijkmp_prepare_async
+IjkMediaPlayer_start	       ijkmp_start
+
+----
+
+ ijkplayer.c中的代码会调用到ff_ffplay.c中的代码，以及类似的ff_ffxxx.c中的代码：
+
+即以ff开头的文件中的函数:
+ cpp/ijkmedia/ijkplayer/ff_ffplay.c
+ 等
+
+----------------------------------------------
+
+ 理解ijkplayer（三）从Java层开始初始化
+
+https://www.jianshu.com/p/0501be9cf4bf
+
+native_init()
+native_setup()
+_setDataSource()
+_setVideoSurface
+
+
+ ----------------------------------------------
+
+理解ijkplayer（四）拉流
+
+https://www.jianshu.com/p/f633da0db4dd
+
+
+_prepareAsync()
+
+
+  ijkmedia/ijkplayer/android/ijkplayer_jni.c  ---> IjkMediaPlayer_prepareAsync
+-->
+ ijkmedia/ijkplayer/ijkplayer.c  ---> ijkmp_prepare_async  ---> ijkmp_prepare_async_l
+-->
+ ijkmedia/ijkplayer/ff_ffplay.c  ---> ffp_prepare_async_l  ---> stream_open   ---> read_thread  --->  stream_component_open
+                                                           ---> ffpipeline_open_audio_output   打开音频输出设备
+
+
+
+ stream_open：
+创建VideoState对象，并初始化他的一些默认属性。
+初始化视频、音频、字幕的解码后的帧队列。
+初始化视频、音频、字幕的解码前的包队列。
+初始化播放器音量。
+创建视频渲染线程。
+创建视频数据读取线程（从网络读取或者从文件读取，io操作）。
+初始化解码器。（ffmpeg应该会在内部创建解码线程）。
+因此，在openstream()方法中完成了最主要的3个线程的创建。
+
+
+
+ 创建视频渲染/读取线程-->
+ static int read_thread(void *arg)
+
+
+ 小结：
+
+总结一下：视频读取线程大致做的事情就是：
+
+1 ffmpeg进行协议探测，封装格式探测等网络请求，为创建解码器做准备。
+2 创建video，audio，subtitle解码器并开启相应的解码线程。
+3 for循环不断地调用av_read_frame()去从ffmpeg内部维护的网络包缓存去取出下载好的AVPacket，并放入相应的队列中，供稍后解码线程取出解码。
+
+
+ ----------------------------------------------
+
+ 理解ijkplayer（五）解码、播放
+
+ https://www.jianshu.com/p/1e10507f18b6
+
+
+ stream_component_open
+
+找到解码器
+初始化解码器
+分别启动audio_thread，video_thread和subtitle_thread这3条解码线程，内部开始不断解码。
+
+字幕解码线程  subtitle_thread
+
+ 从字幕的解码流程中可以看出解码的大致逻辑为：
+1 循环地调用decoder_decode_frame（），在这个方法里面对视频，音频和字幕3种流用switch语句来分别处理解码。当然，在音频解码audio_thread和视频解码video_thread中同样会调用这个方法的。
+2 解码前，先从PacketQueue读取包数据，这个数据从哪里来？从read_thread()函数中调用的ffmpeg的函数：av_read_frame(ic, pkt);来的。
+3 解码时，先塞给解码器pkt数据，再从解码器中读出解码好的frame数据。
+4 再把frame数据入队FrameQueue，留给稍后的渲染器来从FrameQueue中读取
+
+
+ **/
+
+
+
+/**
+ *
+ * ffplay read线程分析
+ *
+ * https://zhuanlan.zhihu.com/p/43672062
+ *
+**/

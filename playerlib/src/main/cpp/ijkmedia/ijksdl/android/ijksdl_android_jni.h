@@ -83,6 +83,7 @@ int     SDL_Android_GetApiLevel();
             (*env__)->DeleteLocalRef(env__, clazz); \
             return -1; \
         } \
+        ALOGE("FindClass::NewGlobalRef success: %s", classsign__); \
         (*env__)->DeleteLocalRef(env__, clazz); \
     } while(0);
 

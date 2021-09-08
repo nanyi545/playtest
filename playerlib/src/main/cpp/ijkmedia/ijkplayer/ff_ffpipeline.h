@@ -38,6 +38,7 @@ struct IJKFF_Pipeline {
 
     void            (*func_destroy)             (IJKFF_Pipeline *pipeline);
     IJKFF_Pipenode *(*func_open_video_decoder)  (IJKFF_Pipeline *pipeline, FFPlayer *ffp);
+    // 打开音频输出设备    ---> IJKFF_Pipeline *ffpipeline_create_from_android(FFPlayer *ffp) 中赋值
     SDL_Aout       *(*func_open_audio_output)   (IJKFF_Pipeline *pipeline, FFPlayer *ffp);
     IJKFF_Pipenode *(*func_init_video_decoder)  (IJKFF_Pipeline *pipeline, FFPlayer *ffp);
     int           (*func_config_video_decoder)  (IJKFF_Pipeline *pipeline, FFPlayer *ffp);

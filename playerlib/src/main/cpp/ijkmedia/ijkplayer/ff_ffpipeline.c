@@ -80,5 +80,6 @@ int ffpipeline_config_video_decoder(IJKFF_Pipeline *pipeline, FFPlayer *ffp)
 
 SDL_Aout *ffpipeline_open_audio_output(IJKFF_Pipeline *pipeline, FFPlayer *ffp)
 {
+    //借助pipeline的方法
     return pipeline->func_open_audio_output(pipeline, ffp);
 }

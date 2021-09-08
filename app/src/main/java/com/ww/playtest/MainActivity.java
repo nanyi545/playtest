@@ -23,6 +23,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 startActivity(new Intent(MainActivity.this, IJKPlayerTestActivity.class));
+//                startActivity(new Intent(MainActivity.this, AndroidPlayerTestActivity.class));
             }
         },3000);
     }

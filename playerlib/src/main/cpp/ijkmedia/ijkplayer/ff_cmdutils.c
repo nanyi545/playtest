@@ -77,7 +77,7 @@ void print_error(const char *filename, int err)
 
     if (av_strerror(err, errbuf, sizeof(errbuf)) < 0)
         errbuf_ptr = strerror(AVUNERROR(err));
-    av_log(NULL, AV_LOG_ERROR, "%s: %s\n", filename, errbuf_ptr);
+    av_log(NULL, AV_LOG_ERROR, "print_error   %s: %s\n", filename, errbuf_ptr);
 }
 
 // MERGE: warned_cfg

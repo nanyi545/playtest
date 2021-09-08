@@ -33,10 +33,16 @@
 
 IjkMediaPlayer *ijkmp_android_create(int(*msg_loop)(void*))
 {
+
+    // 创建IjkMediaPlayer、FFPlayer
     IjkMediaPlayer *mp = ijkmp_create(msg_loop);
     if (!mp)
         goto fail;
 
+    //  创建SDL_Vout
+    // 创建视频输出设备，会根据根据硬解还是软件，硬解用MediaCodec创建，软解用FFmpeg创建  ??????  https://www.jianshu.com/p/075c199e7001
+    // 如果帧的格式是IJK_AV_PIX_FMT__ANDROID_MEDIACODEC，就用硬解创建
+    //   硬解/软解     SDL_Vout-->SDL_VoutOverlay下的fillFrame等方法实现不同   --->
     mp->ffplayer->vout = SDL_VoutAndroid_CreateForAndroidSurface();
     if (!mp->ffplayer->vout)
         goto fail;
@@ -45,6 +51,7 @@ IjkMediaPlayer *ijkmp_android_create(int(*msg_loop)(void*))
     if (!mp->ffplayer->pipeline)
         goto fail;
 
+    //将创建的视频输出设备vout，赋值到ffplayer->pipeline中
     ffpipeline_set_vout(mp->ffplayer->pipeline, mp->ffplayer->vout);
 
     return mp;
@@ -58,8 +65,9 @@ void ijkmp_android_set_surface_l(JNIEnv *env, IjkMediaPlayer *mp, jobject androi
 {
     if (!mp || !mp->ffplayer || !mp->ffplayer->vout)
         return;
-
+    //将Surface与ffplayer->vout关联
     SDL_VoutAndroid_SetAndroidSurface(env, mp->ffplayer->vout, android_surface);
+    //将Surface与ffplayer->pipeline关联
     ffpipeline_set_surface(env, mp->ffplayer->pipeline, android_surface);
 }
 

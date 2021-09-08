@@ -95,6 +95,9 @@ typedef struct SDL_Vout_Opaque {
 
 static SDL_VoutOverlay *func_create_overlay_l(int width, int height, int frame_format, SDL_Vout *vout)
 {
+    // 如果帧的格式是IJK_AV_PIX_FMT__ANDROID_MEDIACODEC，就用硬解创建
+    // //否则用软解创建
+    ALOGV("-davidww-set-decode- func_create_overlay_l:%d   -----66  hardware:%d ",frame_format, IJK_AV_PIX_FMT__ANDROID_MEDIACODEC);
     switch (frame_format) {
     case IJK_AV_PIX_FMT__ANDROID_MEDIACODEC:
         return SDL_VoutAMediaCodec_CreateOverlay(width, height, vout);

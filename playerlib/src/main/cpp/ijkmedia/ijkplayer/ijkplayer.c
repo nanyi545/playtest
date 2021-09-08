@@ -111,6 +111,7 @@ void ijkmp_io_stat_complete_register(void (*cb)(const char *url,
 void ijkmp_change_state_l(IjkMediaPlayer *mp, int new_state)
 {
     mp->mp_state = new_state;
+    // 一般这个notify字样的方法，都是表示将某个事件通知外部的监听器
     ffp_notify_msg1(mp->ffplayer, FFP_MSG_PLAYBACK_STATE_CHANGED);
 }
 
@@ -120,10 +121,13 @@ IjkMediaPlayer *ijkmp_create(int (*msg_loop)(void*))
     if (!mp)
         goto fail;
 
+    //创建IjkMediaPlayer内部的FFPlayer
     mp->ffplayer = ffp_create();
     if (!mp->ffplayer)
         goto fail;
 
+    //注意：将msg_loop函数赋值给IjkMediaPlayer的函数引用，在创建的时候赋值，在另一处被调用。
+    //在哪里被调用呢？在prepareAsync()里面，后面分析prepare方法的时候就会再见到消息循环函数了。
     mp->msg_loop = msg_loop;
 
     ijkmp_inc_ref(mp);
@@ -376,9 +380,12 @@ int ijkmp_set_data_source(IjkMediaPlayer *mp, const char *url)
     return retval;
 }
 
+//这句函数会在线程被启动的时候调用，类似于Thread中的Runnable
 static int ijkmp_msg_loop(void *arg)
 {
     IjkMediaPlayer *mp = arg;
+    // 调用mp的msg_loop函数
+    // mp->msg_loop这个函数，在前面播放器被创建的时候被赋值
     int ret = mp->msg_loop(arg);
     return ret;
 }
@@ -400,12 +407,16 @@ static int ijkmp_prepare_async_l(IjkMediaPlayer *mp)
 
     assert(mp->data_source);
 
+    //改变播放器状态到MP_STATE_ASYNC_PREPARING
     ijkmp_change_state_l(mp, MP_STATE_ASYNC_PREPARING);
 
+    //消息队列开始
     msg_queue_start(&mp->ffplayer->msg_queue);
 
     // released in msg_loop
     ijkmp_inc_ref(mp);
+
+    //创建并启动消息线程，开启循环来读取消息队列的消息。
     mp->msg_thread = SDL_CreateThreadEx(&mp->_msg_thread, ijkmp_msg_loop, mp, "ff_msg_loop");
     // msg_thread is detached inside msg_loop
     // TODO: 9 release weak_thiz if pthread_create() failed;
@@ -685,12 +696,16 @@ void *ijkmp_set_weak_thiz(IjkMediaPlayer *mp, void *weak_thiz)
     return prev_weak_thiz;
 }
 
+
+//获取消息，并在这个函数中针对每一个取出来的消息做c层的处理，例如ijkplayer的当前播放器状态的赋值。
 /* need to call msg_free_res for freeing the resouce obtained in msg */
 int ijkmp_get_msg(IjkMediaPlayer *mp, AVMessage *msg, int block)
 {
     assert(mp);
     while (1) {
         int continue_wait_next_msg = 0;
+
+        //取消息，如果没有消息则阻塞。
         int retval = msg_queue_get(&mp->ffplayer->msg_queue, msg, block);
         if (retval <= 0)
             return retval;

@@ -53,6 +53,22 @@ public class IJKPlayerTestActivity extends AppCompatActivity {
         }
         if (null == ijkMediaPlayer) {
             ijkMediaPlayer = new IjkMediaPlayer();
+
+            // h265硬解
+//            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER,"mediacodec-hevc", 1);
+
+            // h264硬解
+//            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec", 1);
+//            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-auto-rotate", 1);
+//            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-handle-resolution-change", 1);
+
+            // opensles
+//            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "opensles", 1);
+
+// ????
+//            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "dns_cache_clear", 1);
+
+
         } else {
             ijkMediaPlayer.reset();
         }
@@ -64,8 +80,23 @@ public class IJKPlayerTestActivity extends AppCompatActivity {
             // http://cloud.video.taobao.com/play/u/3962528240/p/1/e/6/t/1/216377890710.mp4
 
 //            ijkMediaPlayer.setDataSource("http://liveng.alicdn.com/mediaplatform/fff3c63c-9618-4222-8bc4-05abff11a43b.flv?auth_key=1632724376-0-0-528696637e4a241e94dbe5a8a75d732f");
-            ijkMediaPlayer.setDataSource("https://cloud.video.taobao.com/play/u/3962528240/p/1/e/6/t/1/216377890710.mp4");
+//            ijkMediaPlayer.setDataSource("https://cloud.video.taobao.com/play/u/3962528240/p/1/e/6/t/1/216377890710.mp4");
 //            ijkMediaPlayer.setDataSource("http://cloud.video.taobao.com/play/u/3962528240/p/1/e/6/t/1/216377890710.mp4");
+
+//            ijkMediaPlayer.setDataSource("http://liveng.alicdn.com/mediaplatform/001526a1-f171-411a-9737-f136b30f9f51.flv?auth_key=1632660262-0-0-91cba06978ad862a05beb5c2d5239171");
+//            ijkMediaPlayer.setDataSource("http://liveca.alicdn.com/mediaplatform/9ada5c85-759b-46f8-8580-b8fc36f03533.flv?auth_key=1632664843-0-0-8ae974bce705e3fc795d68b8f0b5fa64");
+
+            // h265
+//            ijkMediaPlayer.setDataSource("http://liveca.alicdn.com/mediaplatform/5ccba454-0e07-4453-ac4b-fb1fc5abefd7.flv?auth_key=1632724868-0-0-d49d34361f839ed195c87a52723105e2");
+
+
+
+            // h265
+            ijkMediaPlayer.setDataSource("http://livecb.alicdn.com/mediaplatform/b780dd3d-0efd-4c37-8be2-b1ebe864006b.flv?auth_key=1633059692-0-0-d06f241964c7e4cfcb17f81671b024df");
+
+            // h264 ...
+//            ijkMediaPlayer.setDataSource("http://livecb.alicdn.com/mediaplatform/c170dd0d-2aee-4aa9-b625-8aa2175b843e.flv?auth_key=1633347411-0-0-1298c3e071b5308268319b385b2a5e37");
+
 
             ijkMediaPlayer.setOnPreparedListener(new IMediaPlayer.OnPreparedListener() {
                 @Override

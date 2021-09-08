@@ -265,6 +265,7 @@ inline static int msg_queue_get(MessageQueue *q, AVMessage *msg, int block)
             ret = 0;
             break;
         } else {
+            //如果消息队列为空，则阻塞当前线程并等待被唤醒。
             SDL_CondWait(q->cond, q->mutex);
         }
     }
