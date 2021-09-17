@@ -1336,7 +1336,7 @@ IjkMediaPlayer_start	       ijkmp_start
 https://www.jianshu.com/p/0501be9cf4bf
 
 native_init()
-native_setup()
+native_setup()  ---> ijkmp_android_create  (创建IjkMediaPlayer、FFPlayer / 设置硬解软解 / )
 _setDataSource()
 _setVideoSurface
 
@@ -1416,5 +1416,224 @@ _prepareAsync()
  * ffplay read线程分析
  *
  * https://zhuanlan.zhihu.com/p/43672062
+ *
+**/
+
+
+/**
+ *
+ * ffplay 分析概述
+ *
+ * https://zhuanlan.zhihu.com/p/44694286
+ *
+ *
+ * ----
+ * ffplay packet queue分析    https://zhuanlan.zhihu.com/p/43295650
+ *
+ * ffplay用PacketQueue保存解封装后的数据，即保存AVPacket。
+ *
+ *  cpp/ijkmedia/ijkplayer/ff_ffplay_def.h :    MyAVPacketList
+ *  cpp/ijkmedia/ijkplayer/ff_ffplay_def.h :    PacketQueue
+ *
+
+PacketQueue操作提供以下方法： ( cpp/ijkmedia/ijkplayer/ff_ffplay.c )
+packet_queue_init：初始化
+packet_queue_destroy：销毁
+packet_queue_start：启用
+packet_queue_abort：中止
+packet_queue_get：获取一个节点
+packet_queue_put：存入一个节点
+packet_queue_put_nullpacket：存入一个空节点
+packet_queue_flush：清除队列内所有的节点
+
+ *
+ * ----
+ *  frame queue分析
+ * https://zhuanlan.zhihu.com/p/43564980
+ *
+ *
+ * ffplay用frame queue保存解码后的数据。
+ *
+ *  结构体Frame用于保存一帧视频画面、音频或者字幕：
+ *
+ *
+ *  接着设计了一个FrameQueue用于表示整个帧队列：
+ *
+ *  cpp/ijkmedia/ijkplayer/ff_ffplay_def.h :    Frame
+ *  cpp/ijkmedia/ijkplayer/ff_ffplay_def.h :    FrameQueue
+ *
+ *  下面看看FrameQueue提供的函数： ( cpp/ijkmedia/ijkplayer/ff_ffplay.c )
+ *
+ *  初始化函数:frame_queue_init
+ *  反初始化:frame_queue_destory
+ *   FrameQueue的“写”分两步，先调用frame_queue_peek_writable获取一个可写节点，
+            在对节点操作结束后，调用frame_queue_push告知FrameQueue“存入”该节点。
+ *
+ *   FrameQueue的读也分两步。frame_queue_peek_readable和frame_queue_next。
+
+
+
+ ------
+ ffplay read线程分析
+https://zhuanlan.zhihu.com/p/43672062
+
+static int read_thread(void *arg)
+   ( in  cpp/ijkmedia/ijkplayer/ff_ffplay.c )
+
+
+准备阶段
+
+准备阶段，主要包括以下步骤：
+avformat_open_input
+avformat_find_stream_info
+av_find_best_stream
+stream_component_open
+
+ stream_component_open --->
+ avcodec_find_decoder找到所需解码器（AVCodec）
+ decoder_init
+ decoder_start:  “启动”了PacketQueue，并创建了一个名为"decoder"的线程专门用于解码，具体的解码流程由传入参数fn  ( audio_thread / video_thread / subtitle_thread  )  决定。
+
+
+
+主循环读数据，主要为：
+
+ 特殊流程的处理:
+
+
+ 常规流程的处理
+  av_read_frame读取一个包(AVPacket)
+  返回值处理
+  pkt_in_play_range计算
+  packet_queue_put放入各自队列，或者丢弃
+
+
+
+
+ ------
+ffplay解码线程分析
+ https://zhuanlan.zhihu.com/p/43948483
+
+
+ ffplay的解码线程独立于读线程，并且每种类型的流(AVStream)都有其各自的解码线程，
+ 如video_thread用于解码video stream，audio_thread用于解码audio stream，subtitle_thread用于解码subtitle stream。
+
+
+
+        PacketQueue     FrameQueue     Clock       解码线程
+ 视频    videoq          pictq          vidclk     video_thread
+ 音频    audioq          sampq          audclk     audio_thread
+ 字母    subtitleq       subpq                     subtitle_thread
+
+
+
+video_thread
+ 软解 （ ???  如何走到这里 ??? ）--> ffplay_video_thread
+ 1  调用get_video_frame解码一帧图像
+ 2  “计算”时长和pts
+ 3  调用queue_picture放入FrameQueue
+
+
+ get_video_frame--->decoder_decode_frame解码
+
+
+
+ ------
+ https://zhuanlan.zhihu.com/p/44122324
+ ffplay video显示线程分析
+
+
+video_refresh的主体流程分为3个步骤：
+
+计算上一帧应显示的时长，判断是否继续显示上一帧
+估算当前帧应显示的时长，判断是否要丢帧
+调用video_display进行显示
+
+
+
+**/
+
+
+/**
+ *
+ *
+  * ( in  cpp/ijkmedia/ijkplayer/ff_ffplay.c )
+  *
+  * video_refresh_thread --->
+ *
+-----
+ stream_open 中创建   ( in  cpp/ijkmedia/ijkplayer/ff_ffplay.c )
+
+    //创建视频渲染线程
+    is->video_refresh_tid = SDL_CreateThreadEx(&is->_video_refresh_tid, video_refresh_thread, ffp, "ff_vout");
+
+
+
+ *
+video_refresh  : called to display each frame
+ --->
+ video_display2
+---->
+video_image_display2
+---->
+ SDL_VoutDisplayYUVOverlay
+ ---> 调用SDL_Vout下的 (ffp->vout)
+ SDL_Vout --> display_overlay    (初始化中设置  ijkmp_android_create --> SDL_VoutAndroid_CreateForAndroidSurface()  )
+
+
+
+ -->  cpp/ijkmedia/ijksdl/android/ijksdl_vout_android_nativewindow.c
+ func_display_overlay_l
+--->  cpp/ijkmedia/ijksdl/ijksdl_egl.c
+ IJK_EGL_display
+
+
+
+**/
+
+
+/**
+ *
+ * https://zhuanlan.zhihu.com/p/44615185
+ *
+ * ffplay音视频同步
+ *
+ *
+ *  pts是presentation timestamp的缩写
+ *  它的单位由timebase决定。timebase的类型是结构体AVRational（用于表示分数）：
+
+typedef struct AVRational{
+    int num; ///< Numerator
+    int den; ///< Denominator
+} AVRational;
+
+
+
+将pts转化为秒，一般做法是：pts * av_q2d(timebase)
+
+
+
+
+ Clock:
+
+cpp/ijkmedia/ijkplayer/ff_ffplay_def.h
+
+
+
+
+----------------
+   ffplay音视频同步分析——视频同步音频
+  https://zhuanlan.zhihu.com/p/44615401
+
+ ffplay中将视频同步到音频的主要方案是，如果视频播放过快，则重复播放上一帧，以等待音频；如果视频播放过慢，则丢帧追赶音频。
+
+这一部分的逻辑实现在视频输出函数video_refresh中
+
+
+
+
+
+
+
  *
 **/

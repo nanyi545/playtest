@@ -84,7 +84,7 @@ void SDL_JNI_DetachThreadEnv()
 {
     JavaVM *jvm = g_jvm;
 
-    ALOGI("%s: [%d]\n", __func__, (int)gettid());
+    ALOGI("SDL_JNI_DetachThreadEnv   %s: [%d]\n", __func__, (int)gettid());
 
     pthread_once(&g_key_once, make_thread_key);
 

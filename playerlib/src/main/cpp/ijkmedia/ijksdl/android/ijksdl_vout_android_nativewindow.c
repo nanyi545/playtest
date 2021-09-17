@@ -167,9 +167,11 @@ static int func_display_overlay_l(SDL_Vout *vout, SDL_VoutOverlay *overlay)
         return -1;
     }
 
+//    ALOGE("davidww-display   func_display_overlay_l   format:%u      SDL_FCC__AMC:%u  SDL_FCC_I444P10LE:%u  SDL_FCC_RV32:%u",overlay->format, SDL_FCC__AMC, SDL_FCC_I444P10LE, SDL_FCC_RV32);
     switch(overlay->format) {
     case SDL_FCC__AMC: {
         // only ANativeWindow support
+//        ALOGE("davidww-display   func_display_overlay_l 1");
         IJK_EGL_terminate(opaque->egl);
         return SDL_VoutOverlayAMediaCodec_releaseFrame_l(overlay, NULL, true);
     }
@@ -177,6 +179,7 @@ static int func_display_overlay_l(SDL_Vout *vout, SDL_VoutOverlay *overlay)
     case SDL_FCC_I420:
     case SDL_FCC_I444P10LE: {
         // only GLES support
+//        ALOGE("davidww-display   func_display_overlay_l 2");
         if (opaque->egl)
             return IJK_EGL_display(opaque->egl, native_window, overlay);
         break;
@@ -185,6 +188,7 @@ static int func_display_overlay_l(SDL_Vout *vout, SDL_VoutOverlay *overlay)
     case SDL_FCC_RV16:
     case SDL_FCC_RV32: {
         // both GLES & ANativeWindow support
+//        ALOGE("davidww-display   func_display_overlay_l 3");
         if (vout->overlay_format == SDL_FCC__GLES2 && opaque->egl)
             return IJK_EGL_display(opaque->egl, native_window, overlay);
         break;
@@ -192,6 +196,7 @@ static int func_display_overlay_l(SDL_Vout *vout, SDL_VoutOverlay *overlay)
     }
 
     // fallback to ANativeWindow
+//    ALOGE("davidww-display   func_display_overlay_l 4");
     IJK_EGL_terminate(opaque->egl);
     return SDL_Android_NativeWindow_display_l(native_window, overlay); 
 }

@@ -157,21 +157,39 @@ typedef struct GetImgInfo {
     struct SwsContext *frame_img_convert_ctx;
 } GetImgInfo;
 
+
+// 引入serial的概念，区别前后数据包是否连续 ??
 typedef struct MyAVPacketList {
-    AVPacket pkt;
-    struct MyAVPacketList *next;
-    int serial;
+    AVPacket pkt; //解封装后的数据
+    struct MyAVPacketList *next; //下一个节点
+    int serial; //序列号
 } MyAVPacketList;
 
+/**
+PacketQueue操作提供以下方法：
+
+packet_queue_init：初始化
+packet_queue_destroy：销毁
+packet_queue_start：启用
+packet_queue_abort：中止
+packet_queue_get：获取一个节点
+packet_queue_put：存入一个节点
+packet_queue_put_nullpacket：存入一个空节点
+packet_queue_flush：清除队列内所有的节点
+
+
+ MyAVPacketList的内存是完全由PacketQueue维护的，在put的时候malloc，在get的时候free。
+
+ */
 typedef struct PacketQueue {
-    MyAVPacketList *first_pkt, *last_pkt;
-    int nb_packets;
+    MyAVPacketList *first_pkt, *last_pkt; //队首，队尾
+    int nb_packets; //队列中一共有多少个节点
     int size;
-    int64_t duration;
-    int abort_request;
+    int64_t duration; //队列所有节点的合计时长
+    int abort_request; //是否要中止队列操作，用于安全快速退出播放
     int serial;
-    SDL_mutex *mutex;
-    SDL_cond *cond;
+    SDL_mutex *mutex; //用于维持PacketQueue的多线程安全(SDL_mutex可以按pthread_mutex_t理解）
+    SDL_cond *cond; //用于读、写线程相互通知(SDL_cond可以按pthread_cond_t理解)
     MyAVPacketList *recycle_pkt;
     int recycle_count;
     int alloc_count;
@@ -212,6 +230,11 @@ typedef struct Clock {
     int *queue_serial;    /* pointer to the current packet queue serial, used for obsolete clock detection */
 } Clock;
 
+
+/**
+ * Frame的设计试图用一个结构体“融合”3种数据：视频、音频、字幕，虽然AVFrame既可以表示视频又可以表示音频，但在融合字幕时又需要引入AVSubtitle，以及一些其他字段，
+ * 如width/height等来补充AVSubtitle，所以整个结构体看起来很“拼凑”（甚至还有视频专用的flip_v字段）。这里先关注frame和sub字段即可。
+ */
 /* Common struct for handling all types of decoded data and allocated render buffers. */
 typedef struct Frame {
     AVFrame *frame;
@@ -234,6 +257,7 @@ typedef struct Frame {
 } Frame;
 
 //用数组作循环队列
+//  凡是windex“之前”的节点，都是写过的。（至于是否可读，rindex知道；至于后续有多少空间可写，size知道）
 typedef struct FrameQueue {
     Frame queue[FRAME_QUEUE_SIZE];
     int rindex;  // read index
@@ -244,7 +268,7 @@ typedef struct FrameQueue {
     int rindex_shown;
     SDL_mutex *mutex;
     SDL_cond *cond;
-    PacketQueue *pktq;
+    PacketQueue *pktq; //关联的PacketQueue
 } FrameQueue;
 
 enum {
@@ -363,7 +387,7 @@ typedef struct VideoState {
     AVStream *subtitle_st;
     PacketQueue subtitleq;
 
-    double frame_timer;
+    double frame_timer;  //  可以理解为帧显示时刻，如更新前，是上一帧的显示时刻；对于更新后（is->frame_timer += delay），则为当前帧显示时刻。
     double frame_last_returned_time;
     double frame_last_filter_delay;
     int video_stream;

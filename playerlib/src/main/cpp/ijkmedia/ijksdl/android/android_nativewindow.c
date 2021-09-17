@@ -26,6 +26,7 @@
 
 #include <assert.h>
 #include <android/native_window.h>
+#include <unistd.h>
 #include "../ijksdl_vout.h"
 #include "../ijksdl_vout_internal.h"
 #include "../ffmpeg/ijksdl_inc_ffmpeg.h"
@@ -201,6 +202,7 @@ AndroidHalFourccDescriptor *native_window_get_desc(int fourcc_or_hal)
 
 int SDL_Android_NativeWindow_display_l(ANativeWindow *native_window, SDL_VoutOverlay *overlay)
 {
+
     int retval;
 
     if (!native_window)
@@ -268,6 +270,8 @@ int SDL_Android_NativeWindow_display_l(ANativeWindow *native_window, SDL_VoutOve
         // TODO: 8 set all black
         // return after unlock image;
     }
+    ALOGE("davidww-display  SDL_Android_NativeWindow_display_l  render_ret:%d   ttid:%d" ,render_ret ,(int)gettid() );
+
 
     retval = ANativeWindow_unlockAndPost(native_window);
     if (retval < 0) {

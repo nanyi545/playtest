@@ -36,7 +36,7 @@
 static void *SDL_RunThread(void *data)
 {
     SDL_Thread *thread = data;
-    ALOGI("SDL_RunThread: [%d] %s\n", (int)gettid(), thread->name);
+    ALOGI("davidww-sdl-SDL_RunThread: [%d] %s\n", (int)gettid(), thread->name);
     pthread_setname_np(pthread_self(), thread->name);
     thread->retval = thread->func(thread->data);
 #ifdef __ANDROID__

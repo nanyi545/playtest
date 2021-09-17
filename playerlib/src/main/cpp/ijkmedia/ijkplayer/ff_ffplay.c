@@ -106,6 +106,8 @@
 // static const AVOption ffp_context_options[] = ...
 #include "ff_ffplay_options.h"
 
+
+// flush_pkt  是一个特殊的packet，主要用来作为非连续的两端数据的“分界”标记。     seek 时候用？
 static AVPacket flush_pkt;
 
 #if CONFIG_AVFILTER
@@ -139,12 +141,13 @@ int64_t get_valid_channel_layout(int64_t channel_layout, int channels)
 #endif
 
 static void free_picture(Frame *vp);
+static int frame_queue_nb_remaining(FrameQueue *f);
 
 static int packet_queue_put_private(PacketQueue *q, AVPacket *pkt)
 {
     MyAVPacketList *pkt1;
 
-    if (q->abort_request)
+    if (q->abort_request) //如果已中止，则放入失败
        return -1;
 
 #ifdef FFP_MERGE
@@ -156,7 +159,7 @@ static int packet_queue_put_private(PacketQueue *q, AVPacket *pkt)
         q->recycle_count++;
     } else {
         q->alloc_count++;
-        pkt1 = av_malloc(sizeof(MyAVPacketList));
+        pkt1 = av_malloc(sizeof(MyAVPacketList)); //分配节点内存
     }
 #ifdef FFP_SHOW_PKT_RECYCLE
     int total_count = q->recycle_count + q->alloc_count;
@@ -167,25 +170,31 @@ static int packet_queue_put_private(PacketQueue *q, AVPacket *pkt)
 #endif
     if (!pkt1)
         return -1;
-    pkt1->pkt = *pkt;
+    pkt1->pkt = *pkt; //拷贝AVPacket(浅拷贝，AVPacket.data等内存并没有拷贝)
     pkt1->next = NULL;
-    if (pkt == &flush_pkt)
+    if (pkt == &flush_pkt){    //如果放入的是flush_pkt，需要增加队列的序列号，以区分不连续的两段数据
         q->serial++;
-    pkt1->serial = q->serial;
+    }
 
+    pkt1->serial = q->serial; //用队列序列号标记节点
+
+    //队列操作：如果last_pkt为空，说明队列是空的，新增节点为队头；否则，队列有数据，则让原队尾的next为新增节点。 最后将队尾指向新增节点
     if (!q->last_pkt)
         q->first_pkt = pkt1;
     else
         q->last_pkt->next = pkt1;
+
+    //队列属性操作：增加节点数、cache大小、cache总时长
     q->last_pkt = pkt1;
     q->nb_packets++;
     q->size += pkt1->pkt.size + sizeof(*pkt1);
 
     q->duration += FFMAX(pkt1->pkt.duration, MIN_PKT_DURATION);
 
-    av_log(NULL, AV_LOG_FATAL, "-davidww-readprocess-packet_queue_put--- nb:%d type:%d", q->nb_packets, q->mediaType);
+    av_log(NULL, AV_LOG_FATAL, "-davidww-readprocess-packet_queue_put--- nb:%d type:%d  serial:%d", q->nb_packets, q->mediaType, q->serial);
 
     /* XXX: should duplicate packet data in DV case */
+    //发出信号，表明当前队列中有数据了，通知等待中的读线程可以取数据了
     SDL_CondSignal(q->cond);
     return 0;
 }
@@ -204,6 +213,7 @@ static int packet_queue_put(PacketQueue *q, AVPacket *pkt)
     return ret;
 }
 
+// 放入“空包”。放入空包意味着流的结束，一般在视频读取完成的时候放入空包。该函数的实现很明了，构建一个空包，然后调用packet_queue_put:
 static int packet_queue_put_nullpacket(PacketQueue *q, int stream_index)
 {
     AVPacket pkt1, *pkt = &pkt1;
@@ -232,6 +242,7 @@ static int packet_queue_init(PacketQueue *q)
     return 0;
 }
 
+// packet_queue_flush用于将队列中的所有节点清除。比如用于销毁队列、seek操作等。
 static void packet_queue_flush(PacketQueue *q)
 {
     MyAVPacketList *pkt, *pkt1;
@@ -291,6 +302,10 @@ static void packet_queue_start(PacketQueue *q)
     SDL_UnlockMutex(q->mutex);
 }
 
+
+//block: 调用者是否需要在没节点可取的情况下阻塞等待
+//AVPacket: 输出参数，即MyAVPacketList.pkt
+//serial: 输出参数，即MyAVPacketList.serial
 /* return < 0 if aborted, 0 if no packet and > 0 if packet.  */
 static int packet_queue_get(PacketQueue *q, AVPacket *pkt, int block, int *serial)
 {
@@ -305,16 +320,16 @@ static int packet_queue_get(PacketQueue *q, AVPacket *pkt, int block, int *seria
             break;
         }
 
-        pkt1 = q->first_pkt;
-        if (pkt1) {
-            q->first_pkt = pkt1->next;
+        pkt1 = q->first_pkt; //MyAVPacketList *pkt1; 从队头拿数据
+        if (pkt1) { //队列中有数据
+            q->first_pkt = pkt1->next; //队头移到第二个节点
             if (!q->first_pkt)
                 q->last_pkt = NULL;
             q->nb_packets--;
             q->size -= pkt1->pkt.size + sizeof(*pkt1);
             q->duration -= FFMAX(pkt1->pkt.duration, MIN_PKT_DURATION);
-            *pkt = pkt1->pkt;
-            if (serial)
+            *pkt = pkt1->pkt; //返回AVPacket，这里发生一次AVPacket结构体拷贝，AVPacket的data只拷贝了指针
+            if (serial) //如果需要输出serial，把serial输出
                 *serial = pkt1->serial;
 #ifdef FFP_MERGE
             av_free(pkt1);
@@ -324,10 +339,10 @@ static int packet_queue_get(PacketQueue *q, AVPacket *pkt, int block, int *seria
 #endif
             ret = 1;
             break;
-        } else if (!block) {
+        } else if (!block) { //队列中没有数据，且非阻塞调用
             ret = 0;
             break;
-        } else {
+        } else { //队列中没有数据，且阻塞调用
             SDL_CondWait(q->cond, q->mutex);
         }
     }
@@ -571,7 +586,7 @@ static int decoder_decode_frame(FFPlayer *ffp, Decoder *d, AVFrame *frame, AVSub
 
     for (;;) {
         AVPacket pkt;
-
+        //1. 流连续的情况下，调用avcodec_receive_frame获取解码后的frame
         if (d->queue->serial == d->pkt_serial) {
             do {
                 if (d->queue->abort_request)
@@ -612,8 +627,12 @@ static int decoder_decode_frame(FFPlayer *ffp, Decoder *d, AVFrame *frame, AVSub
                     avcodec_flush_buffers(d->avctx);
                     return 0;
                 }
-                if (ret >= 0)
+                if (ret >= 0){
+                    if(d->avctx->codec_type==AVMEDIA_TYPE_VIDEO){
+                        av_log(NULL, AV_LOG_ERROR, "davidww-decodeprocess-decoder_decode_frame   video  ---  got decoded frame " );
+                    }
                     return 1;
+                }
             } while (ret != AVERROR(EAGAIN));
         }
 
@@ -625,8 +644,12 @@ static int decoder_decode_frame(FFPlayer *ffp, Decoder *d, AVFrame *frame, AVSub
                 d->packet_pending = 0;
             } else {
                 //阻塞，直到从包队列中取出队列头的包，并填充到pkt
-                if (packet_queue_get_or_buffering(ffp, d->queue, &pkt, &d->pkt_serial, &d->finished) < 0)
+                if (packet_queue_get_or_buffering(ffp, d->queue, &pkt, &d->pkt_serial, &d->finished) < 0){
+                    if(d->avctx->codec_type==AVMEDIA_TYPE_VIDEO){
+                        av_log(NULL, AV_LOG_ERROR, "davidww-decodeprocess-decoder_decode_frame   video --- queue frame  1" );
+                    }
                     return -1;
+                }
             }
         } while (d->queue->serial != d->pkt_serial);
 
@@ -652,10 +675,15 @@ static int decoder_decode_frame(FFPlayer *ffp, Decoder *d, AVFrame *frame, AVSub
             } else {
 
                 // 往解码器里面发送包数据pkt
+                // 此时 不会return !!!
                 if (avcodec_send_packet(d->avctx, &pkt) == AVERROR(EAGAIN)) {
                     av_log(d->avctx, AV_LOG_ERROR, "Receive_frame and send_packet both returned EAGAIN, which is an API violation.\n");
                     d->packet_pending = 1;
                     av_packet_move_ref(&d->pkt, &pkt);
+                } else {
+                    if(d->avctx->codec_type==AVMEDIA_TYPE_VIDEO){
+                        av_log(NULL, AV_LOG_ERROR, "davidww-decodeprocess-decoder_decode_frame   video --- avcodec_send_packet" );
+                    }
                 }
             }
             av_packet_unref(&pkt);
@@ -691,7 +719,7 @@ static int frame_queue_init(FrameQueue *f, PacketQueue *pktq, int max_size, int 
     f->max_size = FFMIN(max_size, FRAME_QUEUE_SIZE);
     f->keep_last = !!keep_last;
     for (i = 0; i < f->max_size; i++)
-        if (!(f->queue[i].frame = av_frame_alloc()))
+        if (!(f->queue[i].frame = av_frame_alloc()))    // 数组queue中的每个元素的frame(AVFrame*)的字段调用av_frame_alloc分配内存。
             return AVERROR(ENOMEM);
     return 0;
 }
@@ -726,11 +754,33 @@ static Frame *frame_queue_peek_next(FrameQueue *f)
     return &f->queue[(f->rindex + f->rindex_shown + 1) % f->max_size];
 }
 
+// frame_queue_peek_last获取上次显示的frame
 static Frame *frame_queue_peek_last(FrameQueue *f)
 {
     return &f->queue[f->rindex];
 }
 
+
+/**
+ *
+FrameQueue的“写”分两步，先调用frame_queue_peek_writable获取一个可写节点，
+ 在对节点操作结束后，调用frame_queue_push告知FrameQueue“存入”该节点。
+
+ 整个函数分3步：
+加锁情况下，等待直到队列有空余空间可写（f->size < f->max_size）, 如果f->size >= f->max_size，那么说明队列中的节点已经写满
+如果有退出请求（f->pktq->abort_request），则返回NULL
+返回windex位置的元素（windex指向当前应写位置）
+
+
+
+ 一般步骤是：
+
+Frame* vp = frame_queue_peek_writable(q);
+av_frame_move_ref(vp->frame, src_frame);  //将要存储的数据写入frame字段，
+frame_queue_push(q); //存入队列
+
+ *
+ */
 static Frame *frame_queue_peek_writable(FrameQueue *f)
 {
     /* wait until we have space to put a new frame */
@@ -747,6 +797,22 @@ static Frame *frame_queue_peek_writable(FrameQueue *f)
     return &f->queue[f->windex];
 }
 
+
+/**
+和frame_queue_peek_writable类似，分三步:
+
+加锁情况下，判断是否有可读节点（f->size - f->rindex_shown > 0)
+如果有退出请求，则返回NULL
+读取当前可读节点(f->rindex + f->rindex_shown) % f->max_size
+
+
+ Frame* vp = frame_queue_peek_readable(f);
+//读取vp的数据，比如
+printf("pict_type=%d\n", vp->frame->pict_type);
+frame_queue_next(f);
+
+
+ */
 static Frame *frame_queue_peek_readable(FrameQueue *f)
 {
     /* wait until we have a readable a new frame */
@@ -771,6 +837,11 @@ static void frame_queue_push(FrameQueue *f)
         f->windex = 0;
     SDL_LockMutex(f->mutex);
     f->size++;
+    if(f->pktq->mediaType==1){
+        av_log(NULL, AV_LOG_WARNING, "davidww-decodeprocess-frame_queue_push     video queue size=%d   max=%d  remain=%d", f->size , f->max_size , frame_queue_nb_remaining(f));
+    } else if (f->pktq->mediaType==2) {
+        av_log(NULL, AV_LOG_WARNING, "davidww-decodeprocess-frame_queue_push     audio queue size=%d   max=%d  remain=%d", f->size , f->max_size , frame_queue_nb_remaining(f));
+    }
     SDL_CondSignal(f->cond);
     SDL_UnlockMutex(f->mutex);
 }
@@ -786,6 +857,11 @@ static void frame_queue_next(FrameQueue *f)
         f->rindex = 0;
     SDL_LockMutex(f->mutex);
     f->size--;
+    if(f->pktq->mediaType==1){
+        av_log(NULL, AV_LOG_WARNING, "davidww-decodeprocess-frame_queue_next     video queue size=%d   max=%d  remain=%d", f->size , f->max_size , frame_queue_nb_remaining(f));
+    } else if (f->pktq->mediaType==2) {
+        av_log(NULL, AV_LOG_WARNING, "davidww-decodeprocess-frame_queue_next     audio queue size=%d   max=%d  remain=%d", f->size , f->max_size , frame_queue_nb_remaining(f));
+    }
     SDL_CondSignal(f->cond);
     SDL_UnlockMutex(f->mutex);
 }
@@ -1294,13 +1370,15 @@ static double compute_target_delay(FFPlayer *ffp, double delay, VideoState *is)
     return delay;
 }
 
+
+ // 取出其前面一帧与后面一帧，是为了通过pts准确计算duration。duration的计算通过函数vp_duration完成：
 static double vp_duration(VideoState *is, Frame *vp, Frame *nextvp) {
     if (vp->serial == nextvp->serial) {
         double duration = nextvp->pts - vp->pts;
         if (isnan(duration) || duration <= 0 || duration > is->max_frame_duration)
             return vp->duration;
         else
-            return duration;
+            return duration;  //使用两帧pts差值计算duration，一般情况下也是走的这个分支
     } else {
         return 0.0;
     }
@@ -1318,6 +1396,7 @@ static void video_refresh(FFPlayer *opaque, double *remaining_time)
     FFPlayer *ffp = opaque;
     VideoState *is = ffp->is;
     double time;
+//    av_log(NULL, AV_LOG_FATAL, " davidww-display   video_refresh   sync type:%d    %d  %d   %d "  , get_master_sync_type(is),AV_SYNC_AUDIO_MASTER,AV_SYNC_VIDEO_MASTER,AV_SYNC_EXTERNAL_CLOCK );
 
     Frame *sp, *sp2;
 
@@ -1335,17 +1414,20 @@ static void video_refresh(FFPlayer *opaque, double *remaining_time)
 
     if (is->video_st) {
 retry:
+        //  pictq 是否有数据
         if (frame_queue_nb_remaining(&is->pictq) == 0) {
             // nothing to do, no picture to display in the queue
         } else {
             double last_duration, duration, delay;
+
+            //lastvp上一帧，vp当前帧 ，nextvp下一帧
             Frame *vp, *lastvp;
 
             /* dequeue the picture */
             lastvp = frame_queue_peek_last(&is->pictq);
             vp = frame_queue_peek(&is->pictq);
 
-            if (vp->serial != is->videoq.serial) {
+            if (vp->serial != is->videoq.serial) {   // 如果条件成立，说明发生过seek等操作，流不连续，应该抛弃lastvp
                 frame_queue_next(&is->pictq);
                 goto retry;
             }
@@ -1357,32 +1439,42 @@ retry:
                 goto display;
 
             /* compute nominal last_duration */
+            // 计算上一帧的持续时长
+            // 取出其前面一帧与后面一帧，是为了通过pts准确计算duration。duration的计算通过函数vp_duration完成：
             last_duration = vp_duration(is, lastvp, vp);
-            delay = compute_target_delay(ffp, last_duration, is);
+            delay = compute_target_delay(ffp, last_duration, is); //参考audio clock计算上一帧真正的持续时长
 
-            time= av_gettime_relative()/1000000.0;
+
+            time= av_gettime_relative()/1000000.0;  //取系统时刻
             if (isnan(is->frame_timer) || time < is->frame_timer)
                 is->frame_timer = time;
-            if (time < is->frame_timer + delay) {
+            if (time < is->frame_timer + delay) {  //如果上一帧显示时长未满，重复显示上一帧
                 *remaining_time = FFMIN(is->frame_timer + delay - time, *remaining_time);
+//                av_log(NULL, AV_LOG_FATAL, " davidww-display   video_refresh   重复显示上一帧   remaining_time:%f", *remaining_time);
                 goto display;
             }
 
-            is->frame_timer += delay;
-            if (delay > 0 && time - is->frame_timer > AV_SYNC_THRESHOLD_MAX)
-                is->frame_timer = time;
+            is->frame_timer += delay; //frame_timer更新为上一帧结束时刻，也是当前帧开始时刻
+            if (delay > 0 && time - is->frame_timer > AV_SYNC_THRESHOLD_MAX) {
+//                av_log(NULL, AV_LOG_FATAL, " davidww-display   video_refresh   修正为系统时间 ");
+                is->frame_timer = time;  //如果与系统时间的偏离太大，则修正为系统时间
+            }
 
+            //更新video clock
+            //视频同步音频时没作用
             SDL_LockMutex(is->pictq.mutex);
             if (!isnan(vp->pts))
                 update_video_pts(is, vp->pts, vp->pos, vp->serial);
             SDL_UnlockMutex(is->pictq.mutex);
 
+            //丢帧逻辑
             if (frame_queue_nb_remaining(&is->pictq) > 1) {
-                Frame *nextvp = frame_queue_peek_next(&is->pictq);
-                duration = vp_duration(is, vp, nextvp);
-                if(!is->step && (ffp->framedrop > 0 || (ffp->framedrop && get_master_sync_type(is) != AV_SYNC_VIDEO_MASTER)) && time > is->frame_timer + duration) {
-                    frame_queue_next(&is->pictq);
-                    goto retry;
+                Frame *nextvp = frame_queue_peek_next(&is->pictq);  //只有有nextvp才会丢帧
+                duration = vp_duration(is, vp, nextvp); //当前帧显示时长
+                if(!is->step && (ffp->framedrop > 0 || (ffp->framedrop && get_master_sync_type(is) != AV_SYNC_VIDEO_MASTER)) && time > is->frame_timer + duration) {  //如果系统时间已经大于当前帧，则丢弃当前帧
+                    frame_queue_next(&is->pictq);  //这里实现的丢帧  ??
+//                    av_log(NULL, AV_LOG_FATAL, " davidww-display   video_refresh   丢帧 ");
+                    goto retry; //回到函数开始位置，继续重试(这里不能直接while丢帧，因为很可能audio clock重新对时了，这样delay值需要重新计算)
                 }
             }
 
@@ -1408,6 +1500,8 @@ retry:
                     }
                 }
             }
+
+//            av_log(NULL, AV_LOG_FATAL, " davidww-display   video_refresh   显示vp ");
 
             frame_queue_next(&is->pictq);
             is->force_refresh = 1;
@@ -1455,7 +1549,7 @@ display:
             else if (is->audio_st)
                 av_diff = get_master_clock(is) - get_clock(&is->audclk);
             av_log(NULL, AV_LOG_INFO,
-                   "%7.2f %s:%7.3f fd=%4d aq=%5dKB vq=%5dKB sq=%5dB f=%"PRId64"/%"PRId64"   \r",
+                   "davidww-display   video_refresh   ---logging---  %7.2f %s:%7.3f fd=%4d aq=%5dKB vq=%5dKB sq=%5dB f=%"PRId64"/%"PRId64"   \r",
                    get_master_clock(is),
                    (is->audio_st && is->video_st) ? "A-V" : (is->video_st ? "M-V" : (is->audio_st ? "M-A" : "   ")),
                    av_diff,
@@ -1519,6 +1613,13 @@ static void alloc_picture(FFPlayer *ffp, int frame_format)
     SDL_UnlockMutex(is->pictq.mutex);
 }
 
+
+    /**
+     *
+     * 先frame_queue_peek_writable取FrameQueue的当前写节点，然后把该拷贝的拷贝给节点(struct Frame)保存，
+     * 然后frame_queue_push，“push”节点到队列中。
+     *
+     */
 static int queue_picture(FFPlayer *ffp, AVFrame *src_frame, double pts, double duration, int64_t pos, int serial)
 {
     VideoState *is = ffp->is;
@@ -1704,6 +1805,7 @@ static int get_video_frame(FFPlayer *ffp, AVFrame *frame)
     if ((got_picture = decoder_decode_frame(ffp, &is->viddec, frame, NULL)) < 0)
         return -1;
 
+    // 丢帧处理：
     if (got_picture) {
         double dpts = NAN;
 
@@ -2178,10 +2280,20 @@ static int decoder_start(Decoder *d, int (*fn)(void *), void *arg, const char *n
     if (!d->decoder_tid) {
         av_log(NULL, AV_LOG_ERROR, "SDL_CreateThread(): %s\n", SDL_GetError());
         return AVERROR(ENOMEM);
+    } else {
+        av_log(NULL, AV_LOG_ERROR, "-davidww-readprocess-decoder start:  thread name: %s",&d->_decoder_tid.name );
     }
     return 0;
 }
 
+// ffplay 软解
+/**
+ *
+1  调用get_video_frame解码一帧图像
+2  “计算”时长和pts
+3  调用queue_picture放入FrameQueue
+ *
+ */
 static int ffplay_video_thread(void *arg)
 {
     FFPlayer *ffp = arg;
@@ -2192,6 +2304,8 @@ static int ffplay_video_thread(void *arg)
     int ret;
     AVRational tb = is->video_st->time_base;
     AVRational frame_rate = av_guess_frame_rate(is->ic, is->video_st, NULL);
+    av_log(NULL, AV_LOG_ERROR, "-davidww-decodeprocess-av_guess_frame_rate   Numerator:%d   Denominator:%d ",frame_rate.num,frame_rate.den);
+
     int64_t dst_pts = -1;
     int64_t last_dst_pts = -1;
     int retry_convert_image = 0;
@@ -2222,7 +2336,9 @@ static int ffplay_video_thread(void *arg)
     }
 
     for (;;) {
-        ret = get_video_frame(ffp, frame);
+        ret = get_video_frame(ffp, frame);  //解码获取一帧视频画面  ,
+        av_log(NULL, AV_LOG_ERROR, "-davidww-decodeprocess-get_video_frame  -----  ret:%d", ret );
+
         if (ret < 0)
             goto the_end;
         if (!ret)
@@ -2328,7 +2444,8 @@ static int ffplay_video_thread(void *arg)
             duration = (frame_rate.num && frame_rate.den ? av_q2d((AVRational){frame_rate.den, frame_rate.num}) : 0);
             pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
             ret = queue_picture(ffp, frame, pts, duration, frame->pkt_pos, is->viddec.pkt_serial);
-            av_frame_unref(frame);
+        av_log(NULL, AV_LOG_ERROR, "-davidww-decodeprocess-queue_picture  ret：%d", ret );
+        av_frame_unref(frame);
 #if CONFIG_AVFILTER
         }
 #endif
@@ -2849,6 +2966,8 @@ static int stream_component_open(FFPlayer *ffp, int stream_index)
         goto fail;
     av_codec_set_pkt_timebase(avctx, ic->streams[stream_index]->time_base);
 //找到解码器
+// 通过avcodec_find_decoder找到所需解码器（AVCodec）。
+// 如果用户有指定解码器，则设置forced_codec_name，并通过avcodec_find_decoder_by_name查找解码器。
     codec = avcodec_find_decoder(avctx->codec_id);
 
     switch (avctx->codec_type) {
@@ -3587,6 +3706,16 @@ static int read_thread(void *arg)
         pkt->flags = 0;
 
         //  Return the next frame of a stream.
+
+        /**
+主要流程为：
+
+av_read_frame读取一个包(AVPacket)
+返回值处理
+pkt_in_play_range计算   ( check if packet is in play range specified by user )
+packet_queue_put放入各自队列，或者丢弃
+
+         */
         ret = av_read_frame(ic, pkt);
 
         if (ret < 0) {
@@ -3606,6 +3735,7 @@ static int read_thread(void *arg)
                 pb_error = AVERROR_EXIT;
             }
 
+            //文件读取完了，调用packet_queue_put_nullpacket通知解码线程
             if (pb_eof) {
                 if (is->video_stream >= 0)
                     packet_queue_put_nullpacket(&is->videoq, is->video_stream);
@@ -3853,7 +3983,7 @@ static int video_refresh_thread(void *arg)
     while (!is->abort_request) {
         if (remaining_time > 0.0)
             av_usleep((int)(int64_t)(remaining_time * 1000000.0));
-        remaining_time = REFRESH_RATE;
+        remaining_time = REFRESH_RATE;   // refresh once every  0.01 second ...
         if (is->show_mode != SHOW_MODE_NONE && (!is->paused || is->force_refresh))
             video_refresh(ffp, &remaining_time);
     }

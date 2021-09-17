@@ -319,8 +319,12 @@ static EGLBoolean IJK_EGL_display_internal(IJK_EGL* egl, EGLNativeWindowType win
     return EGL_TRUE;
 }
 
+#include <unistd.h>
+
 EGLBoolean IJK_EGL_display(IJK_EGL* egl, EGLNativeWindowType window, SDL_VoutOverlay *overlay)
 {
+    ALOGE("davidww-display  IJK_EGL_display " );
+
     EGLBoolean ret = EGL_FALSE;
     if (!egl)
         return EGL_FALSE;
@@ -333,6 +337,8 @@ EGLBoolean IJK_EGL_display(IJK_EGL* egl, EGLNativeWindowType window, SDL_VoutOve
         return EGL_FALSE;
 
     ret = IJK_EGL_display_internal(egl, window, overlay);
+
+
     eglMakeCurrent(egl->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     eglReleaseThread(); // FIXME: call at thread exit
     return ret;

@@ -42,6 +42,7 @@ IjkMediaPlayer *ijkmp_android_create(int(*msg_loop)(void*))
     //  创建SDL_Vout
     // 创建视频输出设备，会根据根据硬解还是软件，硬解用MediaCodec创建，软解用FFmpeg创建  ??????  https://www.jianshu.com/p/075c199e7001
     // 如果帧的格式是IJK_AV_PIX_FMT__ANDROID_MEDIACODEC，就用硬解创建
+    //
     //   硬解/软解     SDL_Vout-->SDL_VoutOverlay下的fillFrame等方法实现不同   --->
     mp->ffplayer->vout = SDL_VoutAndroid_CreateForAndroidSurface();
     if (!mp->ffplayer->vout)

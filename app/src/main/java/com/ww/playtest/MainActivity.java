@@ -4,6 +4,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import android.Manifest;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
@@ -24,6 +25,8 @@ public class MainActivity extends AppCompatActivity {
             public void run() {
                 startActivity(new Intent(MainActivity.this, IJKPlayerTestActivity.class));
 //                startActivity(new Intent(MainActivity.this, AndroidPlayerTestActivity.class));
+//                Uri uri = Uri.parse("tvtaobaoSDK://main");
+//                startActivity(new Intent(Intent.ACTION_VIEW, uri));
             }
         },3000);
     }
