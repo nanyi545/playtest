@@ -25,6 +25,7 @@
 #include "android_audiotrack.h"
 
 #include <assert.h>
+#include <ijkmedia/ijkplayer/ff_ffinc.h>
 #include "j4au/class/android/media/AudioTrack.util.h"
 #include "ijksdl_android_jni.h"
 #include "../ijksdl_inc_internal.h"
@@ -326,6 +327,7 @@ int SDL_Android_AudioTrack_reserve_byte_buffer(JNIEnv *env, SDL_Android_AudioTra
     return capacity;
 }
 
+
 int SDL_Android_AudioTrack_write(JNIEnv *env, SDL_Android_AudioTrack *atrack, uint8_t *data, int size_in_byte)
 {
     if (size_in_byte <= 0)
@@ -341,7 +343,13 @@ int SDL_Android_AudioTrack_write(JNIEnv *env, SDL_Android_AudioTrack *atrack, ui
     if (J4A_ExceptionCheck__catchAll(env))
         return -1;
 
+    long start1 = av_gettime();
     int retval = J4AC_AudioTrack__write(env, atrack->thiz, atrack->byte_buffer, 0, (int)size_in_byte);
+    long start2 = av_gettime();
+    int diff = (int)(start2- start1);
+
+    ALOGE("davidww-audioprocess-SDL_Android_AudioTrack_write   reserved:%d write:%d  retval:%d  diff:%d", reserved, size_in_byte,retval,diff);
+
     if (J4A_ExceptionCheck__catchAll(env))
         return -1;
 

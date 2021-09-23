@@ -115,6 +115,7 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
         }
         SDL_UnlockMutex(opaque->wakeup_mutex);
 
+        // aout_thread_n()里调用的audio_cblk(),实际上就是调用的opaque->spec.callback,其实就是调用到sdl_audio_callback()这个函数来了
         audio_cblk(userdata, buffer, copy_size);
         if (opaque->need_flush) {
             SDL_Android_AudioTrack_flush(env, atrack);

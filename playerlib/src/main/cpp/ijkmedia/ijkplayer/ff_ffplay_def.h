@@ -212,7 +212,7 @@ typedef struct PacketQueue {
 #define VIDEO_MAX_FPS_DEFAULT 30
 
 typedef struct AudioParams {
-    int freq;
+    int freq;  // 采样freq
     int channels;
     int64_t channel_layout;
     enum AVSampleFormat fmt;
@@ -345,14 +345,14 @@ typedef struct VideoState {
     AVStream *audio_st;
     PacketQueue audioq;  //音频包数据：未解码的音频数据，从demuxers输出
     int audio_hw_buf_size;
-    uint8_t *audio_buf;
+    uint8_t *audio_buf;  //  从要输出的AVFrame中取出的音频数据（PCM）
     uint8_t *audio_buf1;
     short *audio_new_buf;  /* for soundtouch buf */
-    unsigned int audio_buf_size; /* in bytes */
+    unsigned int audio_buf_size; /* in bytes   audio_buf的总大小  */
     unsigned int audio_buf1_size;
     unsigned int audio_new_buf_size;
-    int audio_buf_index; /* in bytes */
-    int audio_write_buf_size;
+    int audio_buf_index; /* in bytes  下一次可读的audio_buf的index位置  */
+    int audio_write_buf_size; // audio_buf已经输出的大小，即audio_buf_size - audio_buf_index
     int audio_volume;
     int muted;
     struct AudioParams audio_src;
@@ -774,7 +774,7 @@ inline static void ffp_reset_internal(FFPlayer *ffp)
     memset(ffp->wanted_stream_spec, 0, sizeof(ffp->wanted_stream_spec));
     ffp->seek_by_bytes          = -1;
     ffp->display_disable        = 0;
-    ffp->show_status            = 0;
+    ffp->show_status            = 1;   //   davidww-setting   1 show info   0 not show
     ffp->av_sync_type           = AV_SYNC_AUDIO_MASTER;
     ffp->start_time             = AV_NOPTS_VALUE;
     ffp->duration               = AV_NOPTS_VALUE;

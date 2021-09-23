@@ -1594,6 +1594,42 @@ video_image_display2
 
 /**
  *
+ * --
+ * https://zhuanlan.zhihu.com/p/44139512
+ * ffplay audio输出线程分析-----------------------------------------------------------------------------
+
+stream_component_open --> audio_open    : audio_open是ffplay封装的函数，会优先尝试请求参数能否打开输出设备，尝试失败后会自动查找最佳的参数重新尝试。
+                                          在audio_open函数内，注册sdl_audio_callback函数为音频输出的回调函数。那么，主要的音频输出的逻辑就在sdl_audio_callback函数内了。
+
+
+
+ ---------------------
+
+
+ ff_aout_android -->音频输出线程
+
+ cpp/ijkmedia/ijksdl/android/ijksdl_aout_android_audiotrack.c
+ -->aout_thread
+ -->aout_thread_n
+
+    while (!opaque->abort_request) {
+    ....
+
+    }
+
+ -->
+ SDL_AudioCallback callback  --->   audio_open中注册的回调
+
+
+
+
+ *
+ *
+ */
+
+
+/**
+ *
  * https://zhuanlan.zhihu.com/p/44615185
  *
  * ffplay音视频同步
@@ -1636,4 +1672,24 @@ cpp/ijkmedia/ijkplayer/ff_ffplay_def.h
 
 
  *
+**/
+
+
+
+
+
+
+/**
+ *
+
+davidww-sdl-SDL_RunThread: [5837] ff_msg_loop
+davidww-sdl-SDL_RunThread: [5839] ff_read  流媒体读取线程
+davidww-sdl-SDL_RunThread: [5838] ff_vout
+davidww-sdl-SDL_RunThread: [5844] ff_aout_android  音频输出线程
+davidww-sdl-SDL_RunThread: [5845] ff_audio_dec
+davidww-sdl-SDL_RunThread: [5849] ff_video_dec  音频解码线程
+
+ --——> 音频输出线程 如果使用 opensles
+ davidww-sdl-SDL_RunThread: [6854] ff_aout_opensles
+
 **/

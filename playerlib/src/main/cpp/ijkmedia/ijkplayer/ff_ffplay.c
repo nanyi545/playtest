@@ -1450,13 +1450,13 @@ retry:
                 is->frame_timer = time;
             if (time < is->frame_timer + delay) {  //如果上一帧显示时长未满，重复显示上一帧
                 *remaining_time = FFMIN(is->frame_timer + delay - time, *remaining_time);
-//                av_log(NULL, AV_LOG_FATAL, " davidww-display   video_refresh   重复显示上一帧   remaining_time:%f", *remaining_time);
+                av_log(NULL, AV_LOG_FATAL, " davidww-display   video_refresh   重复显示上一帧   remaining_time:%f  tid:%d", *remaining_time, (int)gettid());
                 goto display;
             }
 
             is->frame_timer += delay; //frame_timer更新为上一帧结束时刻，也是当前帧开始时刻
             if (delay > 0 && time - is->frame_timer > AV_SYNC_THRESHOLD_MAX) {
-//                av_log(NULL, AV_LOG_FATAL, " davidww-display   video_refresh   修正为系统时间 ");
+                av_log(NULL, AV_LOG_FATAL, " davidww-display   video_refresh   修正为系统时间 ");
                 is->frame_timer = time;  //如果与系统时间的偏离太大，则修正为系统时间
             }
 
@@ -1516,8 +1516,10 @@ retry:
         }
 display:
         /* display picture */
-        if (!ffp->display_disable && is->force_refresh && is->show_mode == SHOW_MODE_VIDEO && is->pictq.rindex_shown)
+//        av_log(NULL, AV_LOG_FATAL, " davidww-display  video_refresh  --1 display %d    %d   tid:%d",is->force_refresh, ffp->show_status, (int)gettid());
+        if (!ffp->display_disable && is->force_refresh && is->show_mode == SHOW_MODE_VIDEO && is->pictq.rindex_shown){
             video_display2(ffp);
+        }
     }
     is->force_refresh = 0;
     if (ffp->show_status) {
@@ -1527,6 +1529,8 @@ display:
         double av_diff;
 
         cur_time = av_gettime_relative();
+
+
         if (!last_time || (cur_time - last_time) >= 30000) {
             aqsize = 0;
             vqsize = 0;
@@ -1563,6 +1567,8 @@ display:
             last_time = cur_time;
         }
     }
+//    av_log(NULL, AV_LOG_FATAL, " davidww-display  video_refresh  --2 display" );
+
 }
 
 /* allocate a picture (needs to do that in main thread to avoid
@@ -2587,6 +2593,9 @@ static int synchronize_audio(VideoState *is, int nb_samples)
  */
 static int audio_decode_frame(FFPlayer *ffp)
 {
+    // 注意audio_decode_frame这个函数名很具有迷惑性，实际上，这个函数是没有解码功能的！这个函数主要是处理sampq到audio_buf的过程，最多只是执行了重采样。
+    // ALOGD("davidww-sdl-audio_decode_frame: [%d]  \n", (int)gettid() );   // this is in  音频输出线程
+
     VideoState *is = ffp->is;
     int data_size, resampled_data_size;
     int64_t dec_channel_layout;
@@ -2734,8 +2743,11 @@ reload:
 
     audio_clock0 = is->audio_clock;
     /* update the audio clock with the pts */
-    if (!isnan(af->pts))
-        is->audio_clock = af->pts + (double) af->frame->nb_samples / af->frame->sample_rate;
+    if (!isnan(af->pts)){
+        is->audio_clock = (af->pts + (double) af->frame->nb_samples / af->frame->sample_rate) ;
+        //  nb_samples: 1000      sample_rate: 44100
+//        ALOGD("davidww-audioprocess    audio_decode_frame   af->pts:%f   nb_samples:%d    sample_rate:%d",af->pts, af->frame->nb_samples, af->frame->sample_rate);
+    }
     else
         is->audio_clock = NAN;
     is->audio_clock_serial = af->serial;
@@ -2757,7 +2769,18 @@ reload:
     return resampled_data_size;
 }
 
+
+
+
+// sdl通过sdl_audio_callback函数向ffplay要音频数据，ffplay将sampq中的数据通过audio_decode_frame函数取出，放入is->audio_buf，然后送出给sdl。
+// 在后续回调时先找audio_buf要数据，数据不足的情况下，再调用audio_decode_frame补充audio_buf
+//  输出audio_buf到stream，如果audio_volume为最大音量，则只需memcpy复制给stream即可。否则，可以利用SDL_MixAudioFormat进行音量调整和混音
+
+
 /* prepare a new audio buffer */
+
+
+
 static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
 {
     FFPlayer *ffp = opaque;
@@ -2785,10 +2808,42 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
         SDL_AoutSetPlaybackVolume(ffp->aout, ffp->pf_playback_volume);
     }
 
+
+    //循环发送，直到发够所需数据长度
     while (len > 0) {
+        //如果audio_buf消耗完了，就调用audio_decode_frame重新填充audio_buf
         if (is->audio_buf_index >= is->audio_buf_size) {
-           audio_size = audio_decode_frame(ffp);
-           if (audio_size < 0) {
+
+            av_log(NULL, AV_LOG_ERROR,"davidww-audioprocess  ----- audio_decode_frame   ");
+            /**
+             *
+             * 每一帧 4096byte
+             *
+             * 每次write256byte...
+             *
+davidww-audioprocess  -----   audio_decode_frame
+davidww-audioprocess  -----   audio_buf_index：256    audio_buf_size:4096   audio_write_buf_size:3840  ttid:7435
+davidww-audioprocess  -----   audio_buf_index：512    audio_buf_size:4096   audio_write_buf_size:3584  ttid:7435
+davidww-audioprocess  -----   audio_buf_index：768    audio_buf_size:4096   audio_write_buf_size:3328  ttid:7435
+davidww-audioprocess  -----   audio_buf_index：1024    audio_buf_size:4096   audio_write_buf_size:3072  ttid:7435
+davidww-audioprocess  -----   audio_buf_index：1280    audio_buf_size:4096   audio_write_buf_size:2816  ttid:7435
+davidww-audioprocess  -----   audio_buf_index：1536    audio_buf_size:4096   audio_write_buf_size:2560  ttid:7435
+davidww-audioprocess  -----   audio_buf_index：1792    audio_buf_size:4096   audio_write_buf_size:2304  ttid:7435
+davidww-audioprocess  -----   audio_buf_index：2048    audio_buf_size:4096   audio_write_buf_size:2048  ttid:7435
+davidww-audioprocess  -----   audio_buf_index：2304    audio_buf_size:4096   audio_write_buf_size:1792  ttid:7435
+davidww-audioprocess  -----   audio_buf_index：2560    audio_buf_size:4096   audio_write_buf_size:1536  ttid:7435
+davidww-audioprocess  -----   audio_buf_index：2816    audio_buf_size:4096   audio_write_buf_size:1280  ttid:7435
+davidww-audioprocess  -----   audio_buf_index：3072    audio_buf_size:4096   audio_write_buf_size:1024  ttid:7435
+davidww-audioprocess  -----   audio_buf_index：3328    audio_buf_size:4096   audio_write_buf_size:768  ttid:7435
+davidww-audioprocess  -----   audio_buf_index：3584    audio_buf_size:4096   audio_write_buf_size:512  ttid:7435
+davidww-audioprocess  -----   audio_buf_index：3840    audio_buf_size:4096   audio_write_buf_size:256  ttid:7435
+davidww-audioprocess  -----   audio_buf_index：4096    audio_buf_size:4096   audio_write_buf_size:0  ttid:7435
+             */
+
+            // 注意audio_decode_frame这个函数名很具有迷惑性，实际上，这个函数是没有解码功能的！这个函数主要是处理sampq到audio_buf的过程，最多只是执行了重采样。
+            audio_size = audio_decode_frame(ffp);
+
+            if (audio_size < 0) {
                 /* if error, just output silence */
                is->audio_buf = NULL;
                is->audio_buf_size = SDL_AUDIO_MIN_BUFFER_SIZE / is->audio_tgt.frame_size * is->audio_tgt.frame_size;
@@ -2808,6 +2863,8 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
             break;
         }
         len1 = is->audio_buf_size - is->audio_buf_index;
+//
+
         if (len1 > len)
             len1 = len;
         if (!is->muted && is->audio_buf && is->audio_volume == SDL_MIX_MAXVOLUME)
@@ -2822,10 +2879,14 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
         is->audio_buf_index += len1;
     }
     is->audio_write_buf_size = is->audio_buf_size - is->audio_buf_index;
+    //  this is in 音频播放线程
+    av_log(NULL, AV_LOG_ERROR,"davidww-audioprocess  -----   audio_buf_index：%d    audio_buf_size:%d   audio_write_buf_size:%d  ttid:%d", is->audio_buf_index, is->audio_buf_size,  is->audio_write_buf_size, (int)gettid());
+
     /* Let's assume the audio driver that is used by SDL has two periods. */
     if (!isnan(is->audio_clock)) {
         set_clock_at(&is->audclk, is->audio_clock - (double)(is->audio_write_buf_size) / is->audio_tgt.bytes_per_sec - SDL_AoutGetLatencySeconds(ffp->aout), is->audio_clock_serial, ffp->audio_callback_time / 1000000.0);
         sync_clock_to_slave(&is->extclk, &is->audclk);
+//        av_log(NULL, AV_LOG_ERROR,"davidww-audioprocess  setClock   len：%d   audio_clock:%f", len , is->audio_clock);
     }
     if (!ffp->first_audio_frame_rendered) {
         ffp->first_audio_frame_rendered = 1;
@@ -2850,6 +2911,9 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
     }
 }
 
+/**
+audio_open是ffplay封装的函数，会优先尝试请求参数能否打开输出设备，尝试失败后会自动查找最佳的参数重新尝试。
+ */
 static int audio_open(FFPlayer *opaque, int64_t wanted_channel_layout, int wanted_nb_channels, int wanted_sample_rate, struct AudioParams *audio_hw_params)
 {
     FFPlayer *ffp = opaque;
@@ -2884,6 +2948,9 @@ static int audio_open(FFPlayer *opaque, int64_t wanted_channel_layout, int wante
     wanted_spec.format = AUDIO_S16SYS;
     wanted_spec.silence = 0;
     wanted_spec.samples = FFMAX(SDL_AUDIO_MIN_BUFFER_SIZE, 2 << av_log2(wanted_spec.freq / SDL_AoutGetAudioPerSecondCallBacks(ffp->aout)));
+    // 在audio_open函数内，注册sdl_audio_callback函数为音频输出的回调函数。那么，主要的音频输出的逻辑就在sdl_audio_callback函数内了。
+
+    // sdl通过sdl_audio_callback函数向ffplay要音频数据，ffplay将sampq中的数据通过audio_decode_frame函数取出，放入is->audio_buf，然后送出给sdl。在后续回调时先找audio_buf要数据，数据不足的情况下，再调用audio_decode_frame补充audio_buf
     wanted_spec.callback = sdl_audio_callback;
     wanted_spec.userdata = opaque;
     while (SDL_AoutOpenAudio(ffp->aout, &wanted_spec, &spec) < 0) {
@@ -3053,6 +3120,9 @@ static int stream_component_open(FFPlayer *ffp, int stream_index)
         channel_layout = avctx->channel_layout;
 #endif
 
+        // 调用audio_open打开sdl音频输出，实际打开的设备参数保存在audio_tgt，返回值表示输出设备的缓冲区大小
+        // audio_open是ffplay封装的函数，会优先尝试请求参数能否打开输出设备，尝试失败后会自动查找最佳的参数重新尝试。
+
         /* prepare audio output */
         if ((ret = audio_open(ffp, channel_layout, nb_channels, sample_rate, &is->audio_tgt)) < 0)
             goto fail;
@@ -3061,6 +3131,10 @@ static int stream_component_open(FFPlayer *ffp, int stream_index)
         is->audio_src = is->audio_tgt;
         is->audio_buf_size  = 0;
         is->audio_buf_index = 0;
+
+        //
+        av_log(NULL, AV_LOG_INFO, " davidww-audioprocess   init  freq:%d  channels:%d    frame_size:%d   bytes_per_sec:%d ", is->audio_src.freq , is->audio_src.channels , is->audio_src.frame_size, is->audio_src.bytes_per_sec);
+
 
         /* init averaging filter */
         is->audio_diff_avg_coef  = exp(log(0.01) / AUDIO_DIFF_AVG_NB);

@@ -1,12 +1,20 @@
 package com.ww.playtest;
 
 import android.graphics.SurfaceTexture;
+import android.media.AudioTrack;
 import android.os.Bundle;
+
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import android.util.Log;
 import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.View;
+import android.widget.TableLayout;
+
+import com.ww.playtest.widget.InfoHudViewHolder;
 
 import tv.danmaku.ijk.media.player.IMediaPlayer;
 import tv.danmaku.ijk.media.player.IjkMediaPlayer;
@@ -15,14 +23,24 @@ public class IJKPlayerTestActivity extends AppCompatActivity {
 
     private static final String TAG = "bz_IJKPlayerTest";
     private TextureView texture_view;
+    private SurfaceView surfaceView;
     private Surface surface;
     private IjkMediaPlayer ijkMediaPlayer;
+
+
+    TableLayout tab;
+    InfoHudViewHolder info;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_ijkplayer_test);
         texture_view = findViewById(R.id.texture_view);
+        tab = findViewById(R.id.hud_view);
+        info = new InfoHudViewHolder(this, tab);
+
+
         texture_view.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
             @Override
             public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int width, int height) {
@@ -41,10 +59,47 @@ public class IJKPlayerTestActivity extends AppCompatActivity {
 
             @Override
             public void onSurfaceTextureUpdated(SurfaceTexture surface) {
-
+                Log.d("ffff","onSurfaceTextureUpdated ----------------------------");
             }
         });
+        surfaceView = findViewById(R.id.s_view);
+        surfaceView.setVisibility(View.GONE);
+
+//        surfaceView = findViewById(R.id.s_view);
+//        surfaceView.getHolder().addCallback(new SurfaceHolder.Callback2() {
+//            @Override
+//            public void surfaceRedrawNeeded(@NonNull SurfaceHolder holder) {
+//                Log.d("ffff","SDL_Android_NativeWindow_display_l    surfaceRedrawNeeded1 -----------------------");
+//
+//            }
+//
+//            @Override
+//            public void surfaceRedrawNeededAsync(@NonNull SurfaceHolder holder, @NonNull Runnable drawingFinished) {
+//                Log.d("ffff","SDL_Android_NativeWindow_display_l    surfaceRedrawNeeded2 -----------------------");
+//
+//            }
+//
+//            @Override
+//            public void surfaceCreated(@NonNull SurfaceHolder holder) {
+//                IJKPlayerTestActivity.this.surface = holder.getSurface();
+//            }
+//
+//            @Override
+//            public void surfaceChanged(@NonNull SurfaceHolder holder, int format, int width, int height) {
+//                Log.d("ffff","SDL_Android_NativeWindow_display_l    surfaceChanged -----------------------");
+//            }
+//
+//            @Override
+//            public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
+//
+//            }
+//        });
+
+
+
     }
+
+
 
     public void startPlay(View view) {
         if (null == surface) {
@@ -53,6 +108,10 @@ public class IJKPlayerTestActivity extends AppCompatActivity {
         }
         if (null == ijkMediaPlayer) {
             ijkMediaPlayer = new IjkMediaPlayer();
+
+            // show info ...
+//            info.setMediaPlayer(ijkMediaPlayer);
+
 
             // h265硬解
 //            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER,"mediacodec-hevc", 1);
@@ -90,10 +149,6 @@ public class IJKPlayerTestActivity extends AppCompatActivity {
             ijkMediaPlayer.setDataSource("https://cloud.video.taobao.com/play/u/3962528240/p/1/e/6/t/1/216377890710.mp4");
 
 
-
-
-
-
             ijkMediaPlayer.setOnPreparedListener(new IMediaPlayer.OnPreparedListener() {
                 @Override
                 public void onPrepared(IMediaPlayer iMediaPlayer) {
@@ -123,4 +178,5 @@ public class IJKPlayerTestActivity extends AppCompatActivity {
             ijkMediaPlayer.release();
         }
     }
+
 }
