@@ -2746,7 +2746,7 @@ reload:
     if (!isnan(af->pts)){
         is->audio_clock = (af->pts + (double) af->frame->nb_samples / af->frame->sample_rate) ;
         //  nb_samples: 1000      sample_rate: 44100
-//        ALOGD("davidww-audioprocess    audio_decode_frame   af->pts:%f   nb_samples:%d    sample_rate:%d",af->pts, af->frame->nb_samples, af->frame->sample_rate);
+        ALOGD("davidww-audioprocess    audio_decode_frame   af->pts:%f   nb_samples:%d    sample_rate:%d",af->pts, af->frame->nb_samples, af->frame->sample_rate);
     }
     else
         is->audio_clock = NAN;

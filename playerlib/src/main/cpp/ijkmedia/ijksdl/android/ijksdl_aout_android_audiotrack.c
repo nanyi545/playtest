@@ -27,6 +27,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <jni.h>
+#include <ijkmedia/ijkplayer/ff_ffinc.h>
 #include "../ijksdl_inc_internal.h"
 #include "../ijksdl_thread.h"
 #include "../ijksdl_aout_internal.h"
@@ -68,6 +69,10 @@ typedef struct SDL_Aout_Opaque {
     volatile float speed;
     volatile bool speed_changed;
 } SDL_Aout_Opaque;
+
+bool firstWrite = true;
+double firstTime = 0;
+
 
 static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
 {
@@ -126,6 +131,15 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
             opaque->need_flush = 0;
             SDL_Android_AudioTrack_flush(env, atrack);
         } else {
+            double time = av_gettime_relative() / 1000000.0;
+            if(firstWrite){
+                firstWrite = false;
+                firstTime = time;
+            }
+            double audioTime = time-firstTime;
+            ALOGW("davidww-audioprocess    audioTime : %f ",  audioTime);
+
+
             int written = SDL_Android_AudioTrack_write(env, atrack, buffer, copy_size);
             if (written != copy_size) {
                 ALOGW("AudioTrack: not all data copied %d/%d", (int)written, (int)copy_size);
@@ -138,6 +152,8 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
     SDL_Android_AudioTrack_free(env, atrack);
     return 0;
 }
+
+
 
 static int aout_thread(void *arg)
 {

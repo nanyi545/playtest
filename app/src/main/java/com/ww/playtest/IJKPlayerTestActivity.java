@@ -6,6 +6,9 @@ import android.os.Bundle;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+
+import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceHolder;
@@ -153,6 +156,7 @@ public class IJKPlayerTestActivity extends AppCompatActivity {
                 @Override
                 public void onPrepared(IMediaPlayer iMediaPlayer) {
                     iMediaPlayer.start();
+                    timer.sendEmptyMessage(1);
                 }
             });
             ijkMediaPlayer.prepareAsync();
@@ -161,6 +165,22 @@ public class IJKPlayerTestActivity extends AppCompatActivity {
         }
 
     }
+
+    Handler timer = new Handler(){
+        long firstTime;
+        boolean first= true;
+        @Override
+        public void handleMessage(@NonNull Message msg) {
+            if(first){
+                first =false;
+                firstTime = System.currentTimeMillis();
+            }
+            long t = System.currentTimeMillis();
+            long diff= t- firstTime;
+            Log.d("audioTime","main  audioTime:"+(diff/1000f));
+            sendEmptyMessageDelayed(1,200);
+        }
+    };
 
     @Override
     protected void onPause() {
@@ -178,5 +198,6 @@ public class IJKPlayerTestActivity extends AppCompatActivity {
             ijkMediaPlayer.release();
         }
     }
+
 
 }
