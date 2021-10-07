@@ -137,7 +137,7 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
                 firstTime = time;
             }
             double audioTime = time-firstTime;
-            ALOGW("davidww-audioprocess    audioTime : %f ",  audioTime);
+//            ALOGW("davidww-audioprocess    audioTime : %f ",  audioTime);
 
 
             int written = SDL_Android_AudioTrack_write(env, atrack, buffer, copy_size);
@@ -180,6 +180,7 @@ static int aout_open_audio_n(JNIEnv *env, SDL_Aout *aout, const SDL_AudioSpec *d
         ALOGE("aout_open_audio_n: failed to new AudioTrcak()");
         return -1;
     }
+    ALOGI("davidww-audioprocess  create audio track    desired   freq:%d  buffer_size_in_bytes:%d", desired->freq, desired->size);
 
     opaque->buffer_size = SDL_Android_AudioTrack_get_min_buffer_size(opaque->atrack);
     if (opaque->buffer_size <= 0) {
@@ -203,7 +204,7 @@ static int aout_open_audio_n(JNIEnv *env, SDL_Aout *aout, const SDL_AudioSpec *d
     }
 
     opaque->audio_session_id = SDL_Android_AudioTrack_getAudioSessionId(env, opaque->atrack);
-    ALOGI("audio_session_id = %d\n", opaque->audio_session_id);
+    ALOGI("davidww-audioprocess  audio_session_id = %d\n", opaque->audio_session_id);
 
     opaque->pause_on = 1;
     opaque->abort_request = 0;

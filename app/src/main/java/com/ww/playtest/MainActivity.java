@@ -23,7 +23,10 @@ public class MainActivity extends AppCompatActivity {
         getWindow().getDecorView().postDelayed(new Runnable() {
             @Override
             public void run() {
-                startActivity(new Intent(MainActivity.this, IJKPlayerTestActivity.class));
+//                startActivity(new Intent(MainActivity.this, IJKPlayerTestActivity.class));
+
+                startActivity(new Intent(MainActivity.this, PlayDemoActivity.class));
+//
 //                startActivity(new Intent(MainActivity.this, AndroidPlayerTestActivity.class));
 //                Uri uri = Uri.parse("tvtaobaoSDK://main");
 //                startActivity(new Intent(Intent.ACTION_VIEW, uri));

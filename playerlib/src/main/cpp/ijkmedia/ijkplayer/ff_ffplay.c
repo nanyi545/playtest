@@ -1522,6 +1522,7 @@ display:
         }
     }
     is->force_refresh = 0;
+    av_log(NULL, AV_LOG_FATAL, " davidww-display  video_refresh  --2 display" );
     if (ffp->show_status) {
         static int64_t last_time;
         int64_t cur_time;
@@ -1567,7 +1568,6 @@ display:
             last_time = cur_time;
         }
     }
-//    av_log(NULL, AV_LOG_FATAL, " davidww-display  video_refresh  --2 display" );
 
 }
 
@@ -2705,6 +2705,9 @@ reload:
         if (!is->audio_buf1)
             return AVERROR(ENOMEM);
         len2 = swr_convert(is->swr_ctx, out, out_count, in, af->frame->nb_samples);
+
+//        av_log(NULL, AV_LOG_ERROR, "davidww-audioprocess  swr_convert()   len2:%d  nb_samples:%d",len2, af->frame->nb_samples);
+
         if (len2 < 0) {
             av_log(NULL, AV_LOG_ERROR, "swr_convert() failed\n");
             return -1;
@@ -2717,6 +2720,9 @@ reload:
         is->audio_buf = is->audio_buf1;
         int bytes_per_sample = av_get_bytes_per_sample(is->audio_tgt.fmt);
         resampled_data_size = len2 * is->audio_tgt.channels * bytes_per_sample;
+
+
+
 #if defined(__ANDROID__)
         if (ffp->soundtouch_enable && ffp->pf_playback_rate != 1.0f && !is->abort_request) {
             av_fast_malloc(&is->audio_new_buf, &is->audio_new_buf_size, out_size * translate_time);
@@ -2746,7 +2752,7 @@ reload:
     if (!isnan(af->pts)){
         is->audio_clock = (af->pts + (double) af->frame->nb_samples / af->frame->sample_rate) ;
         //  nb_samples: 1000      sample_rate: 44100
-        ALOGD("davidww-audioprocess    audio_decode_frame   af->pts:%f   nb_samples:%d    sample_rate:%d",af->pts, af->frame->nb_samples, af->frame->sample_rate);
+//        ALOGD("davidww-audioprocess    audio_decode_frame   af->pts:%f   nb_samples:%d    sample_rate:%d",af->pts, af->frame->nb_samples, af->frame->sample_rate);
     }
     else
         is->audio_clock = NAN;
@@ -2814,7 +2820,7 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
         //如果audio_buf消耗完了，就调用audio_decode_frame重新填充audio_buf
         if (is->audio_buf_index >= is->audio_buf_size) {
 
-            av_log(NULL, AV_LOG_ERROR,"davidww-audioprocess  ----- audio_decode_frame   ");
+//            av_log(NULL, AV_LOG_ERROR,"davidww-audioprocess  ----- audio_decode_frame   ");
             /**
              *
              * 每一帧 4096byte
@@ -2880,7 +2886,7 @@ davidww-audioprocess  -----   audio_buf_index：4096    audio_buf_size:4096   au
     }
     is->audio_write_buf_size = is->audio_buf_size - is->audio_buf_index;
     //  this is in 音频播放线程
-    av_log(NULL, AV_LOG_ERROR,"davidww-audioprocess  -----   audio_buf_index：%d    audio_buf_size:%d   audio_write_buf_size:%d  ttid:%d", is->audio_buf_index, is->audio_buf_size,  is->audio_write_buf_size, (int)gettid());
+//    av_log(NULL, AV_LOG_ERROR,"davidww-audioprocess  -----   audio_buf_index：%d    audio_buf_size:%d   audio_write_buf_size:%d  ttid:%d", is->audio_buf_index, is->audio_buf_size,  is->audio_write_buf_size, (int)gettid());
 
     /* Let's assume the audio driver that is used by SDL has two periods. */
     if (!isnan(is->audio_clock)) {
@@ -2938,7 +2944,9 @@ static int audio_open(FFPlayer *opaque, int64_t wanted_channel_layout, int wante
     }
     wanted_nb_channels = av_get_channel_layout_nb_channels(wanted_channel_layout);
     wanted_spec.channels = wanted_nb_channels;
-    wanted_spec.freq = wanted_sample_rate;
+    wanted_spec.freq = wanted_sample_rate / 16;    //  davidww-audioprocess  音频重采样，减少音频频率
+
+
     if (wanted_spec.freq <= 0 || wanted_spec.channels <= 0) {
         av_log(NULL, AV_LOG_ERROR, "Invalid sample rate or channel count!\n");
         return -1;
@@ -3216,9 +3224,15 @@ static int stream_component_open(FFPlayer *ffp, int stream_index)
 
             av_log(ffp, AV_LOG_WARNING, "-davidww-test-setdiscard-");
 
+
+        // short video
+            //  AVDISCARD_NONREF  --> total frame 501   ----> 39.332
+            //  AVDISCARD_BIDIR  --> total frame 405    ----> 32.405
+            //  AVDISCARD_NONINTRA  --> total frame 37  ----> ~29
 //            avctx->skip_frame       = AVDISCARD_NONREF;
 //            avctx->skip_loop_filter = AVDISCARD_NONREF;
 //            avctx->skip_idct        = AVDISCARD_NONREF;
+
 
             break;
     case AVMEDIA_TYPE_SUBTITLE:

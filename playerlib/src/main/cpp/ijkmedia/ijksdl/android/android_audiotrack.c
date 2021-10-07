@@ -348,7 +348,7 @@ int SDL_Android_AudioTrack_write(JNIEnv *env, SDL_Android_AudioTrack *atrack, ui
     long start2 = av_gettime();
     int diff = (int)(start2- start1);
 
-    ALOGE("davidww-audioprocess-SDL_Android_AudioTrack_write   reserved:%d write:%d  retval:%d  diff:%d", reserved, size_in_byte,retval,diff);
+//    ALOGE("davidww-audioprocess-SDL_Android_AudioTrack_write   reserved:%d write:%d  retval:%d  diff:%d", reserved, size_in_byte,retval,diff);
 
     if (J4A_ExceptionCheck__catchAll(env))
         return -1;

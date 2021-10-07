@@ -68,6 +68,7 @@ public class IJKPlayerTestActivity extends AppCompatActivity {
         surfaceView = findViewById(R.id.s_view);
         surfaceView.setVisibility(View.GONE);
 
+
 //        surfaceView = findViewById(R.id.s_view);
 //        surfaceView.getHolder().addCallback(new SurfaceHolder.Callback2() {
 //            @Override
@@ -120,9 +121,9 @@ public class IJKPlayerTestActivity extends AppCompatActivity {
 //            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER,"mediacodec-hevc", 1);
 
             // h264硬解
-//            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec", 1);
-//            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-auto-rotate", 1);
-//            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-handle-resolution-change", 1);
+            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec", 1);
+            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-auto-rotate", 1);
+            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-handle-resolution-change", 1);
 
             // opensles
 //            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "opensles", 1);
@@ -149,7 +150,10 @@ public class IJKPlayerTestActivity extends AppCompatActivity {
 //            ijkMediaPlayer.setDataSource("http://livecb.alicdn.com/mediaplatform/8db55dc1-3900-455e-9015-713e7bee277b.flv?auth_key=1633950162-0-0-7edb36539055629fc42e137909428259");
 
 
-            ijkMediaPlayer.setDataSource("https://cloud.video.taobao.com/play/u/3962528240/p/1/e/6/t/1/216377890710.mp4");
+//            ijkMediaPlayer.setDataSource("https://cloud.video.taobao.com/play/u/3962528240/p/1/e/6/t/1/216377890710.mp4");
+
+            // http://liveng.alicdn.com/mediaplatform/bf11b745-3112-4923-97c2-bf172362d283.flv?auth_key=1634971123-0-0-45e5f4a57809314609bb3d03e833b82b
+            ijkMediaPlayer.setDataSource("http://liveng.alicdn.com/mediaplatform/bf11b745-3112-4923-97c2-bf172362d283.flv?auth_key=1634971123-0-0-45e5f4a57809314609bb3d03e833b82b");
 
 
             ijkMediaPlayer.setOnPreparedListener(new IMediaPlayer.OnPreparedListener() {
@@ -177,7 +181,7 @@ public class IJKPlayerTestActivity extends AppCompatActivity {
             }
             long t = System.currentTimeMillis();
             long diff= t- firstTime;
-            Log.d("audioTime","main  audioTime:"+(diff/1000f));
+            Log.d("ffmpeg","------------------------------main  playTime:"+(diff/1000f));
             sendEmptyMessageDelayed(1,200);
         }
     };
@@ -196,6 +200,9 @@ public class IJKPlayerTestActivity extends AppCompatActivity {
         if (null != ijkMediaPlayer) {
             ijkMediaPlayer.stop();
             ijkMediaPlayer.release();
+        }
+        if (null != timer) {
+            timer.removeCallbacksAndMessages(null);
         }
     }
 

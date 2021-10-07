@@ -26,6 +26,7 @@
 
 #include <assert.h>
 #include <android/native_window.h>
+#include <ijkmedia/ijkplayer/ff_ffinc.h>
 #include "ijksdl/ijksdl_vout.h"
 #include "ijksdl/ijksdl_vout_internal.h"
 #include "ijksdl/ijksdl_container.h"
@@ -142,6 +143,11 @@ static void func_free_l(SDL_Vout *vout)
     SDL_Vout_FreeInternal(vout);
 }
 
+static bool firstCall = true;
+static double firstTime = 0.0;
+static int totalFrame = 0;
+static double totalFrameTime = 0;
+
 static int func_display_overlay_l(SDL_Vout *vout, SDL_VoutOverlay *overlay)
 {
     SDL_Vout_Opaque *opaque = vout->opaque;
@@ -195,10 +201,41 @@ static int func_display_overlay_l(SDL_Vout *vout, SDL_VoutOverlay *overlay)
     }
     }
 
+    if(firstCall){
+        firstCall = false;
+        firstTime = av_gettime_relative() / 1000000.0;
+    }
+
+    double time = av_gettime_relative() / 1000000.0;
+    totalFrame = totalFrame +1 ;
+    double diff = time - firstTime;
     // fallback to ANativeWindow
-//    ALOGE("davidww-display   func_display_overlay_l 4");
     IJK_EGL_terminate(opaque->egl);
-    return SDL_Android_NativeWindow_display_l(native_window, overlay); 
+
+    int fall_back_ret;
+
+    // davidww-display  ---> skip frames ...
+
+    if(totalFrame%2==0){
+        fall_back_ret = SDL_Android_NativeWindow_display_l(native_window, overlay);
+    }  else {
+        fall_back_ret = 0;
+    }
+
+
+    // davidww-display  ---> do not skip frames ...
+
+//    fall_back_ret = SDL_Android_NativeWindow_display_l(native_window, overlay);
+
+
+    double time2 = av_gettime_relative() / 1000000.0;
+    double frameTime = (time2 - time);
+    totalFrameTime = totalFrameTime + frameTime;
+    double averageFrameTime = totalFrameTime / totalFrame;
+
+    ALOGE("davidww-display   func_display_overlay_l 4    diff:%f    totalFrame:%d    frame display time:%f    averageFrameTime:%f", diff, totalFrame, frameTime ,averageFrameTime );
+
+    return fall_back_ret;
 }
 
 static int func_display_overlay(SDL_Vout *vout, SDL_VoutOverlay *overlay)

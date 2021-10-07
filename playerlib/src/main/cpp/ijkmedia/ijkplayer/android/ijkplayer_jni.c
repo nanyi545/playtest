@@ -1360,7 +1360,7 @@ _prepareAsync()
 
 
 
- stream_open：
+  --- stream_open：
 创建VideoState对象，并初始化他的一些默认属性。
 初始化视频、音频、字幕的解码后的帧队列。
 初始化视频、音频、字幕的解码前的包队列。
@@ -1581,11 +1581,13 @@ video_image_display2
  SDL_Vout --> display_overlay    (初始化中设置  ijkmp_android_create --> SDL_VoutAndroid_CreateForAndroidSurface()  )
 
 
-
  -->  cpp/ijkmedia/ijksdl/android/ijksdl_vout_android_nativewindow.c
  func_display_overlay_l
 --->  cpp/ijkmedia/ijksdl/ijksdl_egl.c
  IJK_EGL_display
+
+
+------------------> func_display_overlay_l 4  -----> 使用android_nativewindow播放
 
 
 
@@ -1684,7 +1686,7 @@ cpp/ijkmedia/ijkplayer/ff_ffplay_def.h
 
 davidww-sdl-SDL_RunThread: [5837] ff_msg_loop
 davidww-sdl-SDL_RunThread: [5839] ff_read  流媒体读取线程
-davidww-sdl-SDL_RunThread: [5838] ff_vout
+davidww-sdl-SDL_RunThread: [5838] ff_vout  视频输出线程
 davidww-sdl-SDL_RunThread: [5844] ff_aout_android  音频输出线程
 davidww-sdl-SDL_RunThread: [5845] ff_audio_dec
 davidww-sdl-SDL_RunThread: [5849] ff_video_dec  音频解码线程
