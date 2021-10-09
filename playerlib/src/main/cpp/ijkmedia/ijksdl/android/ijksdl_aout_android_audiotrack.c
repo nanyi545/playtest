@@ -72,7 +72,7 @@ typedef struct SDL_Aout_Opaque {
 
 bool firstWrite = true;
 double firstTime = 0;
-
+static int totalSize = 0;
 
 static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
 {
@@ -137,7 +137,8 @@ static int aout_thread_n(JNIEnv *env, SDL_Aout *aout)
                 firstTime = time;
             }
             double audioTime = time-firstTime;
-//            ALOGW("davidww-audioprocess    audioTime : %f ",  audioTime);
+            totalSize += copy_size;
+            ALOGW("davidww-audioprocess    audioTime : %f   total size:%d",  audioTime,  totalSize);
 
 
             int written = SDL_Android_AudioTrack_write(env, atrack, buffer, copy_size);

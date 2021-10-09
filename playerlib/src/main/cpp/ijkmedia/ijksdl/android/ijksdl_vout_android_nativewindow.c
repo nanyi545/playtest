@@ -215,16 +215,13 @@ static int func_display_overlay_l(SDL_Vout *vout, SDL_VoutOverlay *overlay)
     int fall_back_ret;
 
     // davidww-display  ---> skip frames ...
-
     if(totalFrame%2==0){
         fall_back_ret = SDL_Android_NativeWindow_display_l(native_window, overlay);
     }  else {
         fall_back_ret = 0;
     }
 
-
     // davidww-display  ---> do not skip frames ...
-
 //    fall_back_ret = SDL_Android_NativeWindow_display_l(native_window, overlay);
 
 

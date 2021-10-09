@@ -121,9 +121,22 @@ public class IJKPlayerTestActivity extends AppCompatActivity {
 //            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER,"mediacodec-hevc", 1);
 
             // h264硬解
-            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec", 1);
-            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-auto-rotate", 1);
-            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-handle-resolution-change", 1);
+//            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec", 1);
+//            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-auto-rotate", 1);
+//            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-handle-resolution-change", 1);
+
+
+            // 视频解码缓存队列长度  ???
+            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "video-pictq-size", 15);
+
+
+            //  these 2 params  ---->  short video ok !!!!
+            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "framedrop", 1);
+            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_CODEC, "skip_loop_filter", 48);
+
+            //
+            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_CODEC, "skip_idct", 48);
+
 
             // opensles
 //            ijkMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "opensles", 1);
@@ -142,18 +155,10 @@ public class IJKPlayerTestActivity extends AppCompatActivity {
             // https://cloud.video.taobao.com/play/u/3962528240/p/1/e/6/t/1/216377890710.mp4
             // http://cloud.video.taobao.com/play/u/3962528240/p/1/e/6/t/1/216377890710.mp4
 
-//            ijkMediaPlayer.setDataSource("http://liveng.alicdn.com/mediaplatform/fff3c63c-9618-4222-8bc4-05abff11a43b.flv?auth_key=1632724376-0-0-528696637e4a241e94dbe5a8a75d732f");
-//            ijkMediaPlayer.setDataSource("https://cloud.video.taobao.com/play/u/3962528240/p/1/e/6/t/1/216377890710.mp4");
-//            ijkMediaPlayer.setDataSource("http://cloud.video.taobao.com/play/u/3962528240/p/1/e/6/t/1/216377890710.mp4");
-
-//            ijkMediaPlayer.setDataSource("http://liveng.alicdn.com/mediaplatform/001526a1-f171-411a-9737-f136b30f9f51.flv?auth_key=1632660262-0-0-91cba06978ad862a05beb5c2d5239171");
-//            ijkMediaPlayer.setDataSource("http://livecb.alicdn.com/mediaplatform/8db55dc1-3900-455e-9015-713e7bee277b.flv?auth_key=1633950162-0-0-7edb36539055629fc42e137909428259");
-
 
 //            ijkMediaPlayer.setDataSource("https://cloud.video.taobao.com/play/u/3962528240/p/1/e/6/t/1/216377890710.mp4");
 
-            // http://liveng.alicdn.com/mediaplatform/bf11b745-3112-4923-97c2-bf172362d283.flv?auth_key=1634971123-0-0-45e5f4a57809314609bb3d03e833b82b
-            ijkMediaPlayer.setDataSource("http://liveng.alicdn.com/mediaplatform/bf11b745-3112-4923-97c2-bf172362d283.flv?auth_key=1634971123-0-0-45e5f4a57809314609bb3d03e833b82b");
+            ijkMediaPlayer.setDataSource("http://liveng.alicdn.com/mediaplatform/6db5410d-bebe-4ff5-8a55-611aee56394d.flv?auth_key=1635763598-0-0-fc740a98c9681d37d589530c511c2e39");
 
 
             ijkMediaPlayer.setOnPreparedListener(new IMediaPlayer.OnPreparedListener() {

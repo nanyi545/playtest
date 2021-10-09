@@ -65,10 +65,10 @@ public class AndroidPlayerTestActivity extends AppCompatActivity {
             mediaPlayer.setSurface(surface);
 
 
-//            mediaPlayer.setDataSource("https://cloud.video.taobao.com/play/u/3962528240/p/1/e/6/t/1/216377890710.mp4");
+            mediaPlayer.setDataSource("https://cloud.video.taobao.com/play/u/3962528240/p/1/e/6/t/1/216377890710.mp4");
 
             // h264 ...
-            mediaPlayer.setDataSource("http://livecb.alicdn.com/mediaplatform/c170dd0d-2aee-4aa9-b625-8aa2175b843e.flv?auth_key=1633347411-0-0-1298c3e071b5308268319b385b2a5e37");
+//            mediaPlayer.setDataSource("http://livecb.alicdn.com/mediaplatform/c170dd0d-2aee-4aa9-b625-8aa2175b843e.flv?auth_key=1633347411-0-0-1298c3e071b5308268319b385b2a5e37");
 
             // h265 ...
 //            mediaPlayer.setDataSource("http://livecb.alicdn.com/mediaplatform/b780dd3d-0efd-4c37-8be2-b1ebe864006b.flv?auth_key=1633059692-0-0-d06f241964c7e4cfcb17f81671b024df");
