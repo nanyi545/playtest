@@ -774,7 +774,7 @@ inline static void ffp_reset_internal(FFPlayer *ffp)
     memset(ffp->wanted_stream_spec, 0, sizeof(ffp->wanted_stream_spec));
     ffp->seek_by_bytes          = -1;
     ffp->display_disable        = 0;
-    ffp->show_status            = 0;   //   davidww-setting   1 show info   0 not show
+    ffp->show_status            = 1;   //   davidww-setting   1 show info   0 not show
     ffp->av_sync_type           = AV_SYNC_AUDIO_MASTER;
     ffp->start_time             = AV_NOPTS_VALUE;
     ffp->duration               = AV_NOPTS_VALUE;

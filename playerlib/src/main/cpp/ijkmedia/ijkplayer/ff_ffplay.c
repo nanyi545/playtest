@@ -629,7 +629,7 @@ static int decoder_decode_frame(FFPlayer *ffp, Decoder *d, AVFrame *frame, AVSub
                 }
                 if (ret >= 0){
                     if(d->avctx->codec_type==AVMEDIA_TYPE_VIDEO){
-                        av_log(NULL, AV_LOG_ERROR, "davidww-decodeprocess-decoder_decode_frame   video  ---  got decoded frame " );
+//                        av_log(NULL, AV_LOG_ERROR, "davidww-decodeprocess-decoder_decode_frame   video  ---  got decoded frame    key:%d   pts:%lld",frame->key_frame ,frame->pts );
                     }
                     return 1;
                 }
@@ -1522,7 +1522,13 @@ display:
         }
     }
     is->force_refresh = 0;
-    av_log(NULL, AV_LOG_FATAL, " davidww-display  video_refresh  --2 display" );
+//    av_log(NULL, AV_LOG_FATAL, " davidww-display  video_refresh  --2 display" );
+
+    double aTime = get_clock(&is->audclk);
+    double vTime = get_clock(&is->vidclk);
+    av_log(NULL, AV_LOG_FATAL, " davidww-display  video_refresh  --2  aTime:%f  vTime:%f  ",aTime ,vTime );
+
+
     if (ffp->show_status) {
         static int64_t last_time;
         int64_t cur_time;
@@ -2292,6 +2298,9 @@ static int decoder_start(Decoder *d, int (*fn)(void *), void *arg, const char *n
     return 0;
 }
 
+
+static int quePicCount = 0;
+static double quePicTotalTime = 0;
 // ffplay 软解
 /**
  *
@@ -2343,21 +2352,26 @@ static int ffplay_video_thread(void *arg)
 
     for (;;) {
         ret = get_video_frame(ffp, frame);  //解码获取一帧视频画面  ,
-        av_log(NULL, AV_LOG_ERROR, "-davidww-decodeprocess-get_video_frame  -----  ret:%d", ret );
+//        av_log(NULL, AV_LOG_ERROR, "-davidww-decodeprocess-get_video_frame  -----  ret:%d", ret );
 
-        if (ret < 0)
+        if (ret < 0) {
+//            av_log(NULL, AV_LOG_ERROR, "-davidww-decodeprocess-get_video_frame  ------------ goto the_end" );
             goto the_end;
-        if (!ret)
-            continue;
+        }
 
+        if (!ret) {
+//            av_log(NULL, AV_LOG_ERROR, "-davidww-decodeprocess-get_video_frame  ------------ !ret" );
+            continue;
+        }
+
+//        av_log(NULL, AV_LOG_ERROR, "-davidww-decodeprocess-get_video_frame  ------------ ffp->get_frame_mode: %d",ffp->get_frame_mode );
         if (ffp->get_frame_mode) {
+//            av_log(NULL, AV_LOG_ERROR, "-davidww-decodeprocess-get_video_frame  ------------  if ffp->get_frame_mode"  );
             if (!ffp->get_img_info || ffp->get_img_info->count <= 0) {
                 av_frame_unref(frame);
                 continue;
             }
-
             last_dst_pts = dst_pts;
-
             if (dst_pts < 0) {
                 dst_pts = ffp->get_img_info->start_time;
             } else {
@@ -2395,6 +2409,7 @@ static int ffplay_video_thread(void *arg)
         }
 
 #if CONFIG_AVFILTER
+
         if (   last_w != frame->width
             || last_h != frame->height
             || last_format != frame->format
@@ -2447,10 +2462,23 @@ static int ffplay_video_thread(void *arg)
                 is->frame_last_filter_delay = 0;
             tb = av_buffersink_get_time_base(filt_out);
 #endif
+
             duration = (frame_rate.num && frame_rate.den ? av_q2d((AVRational){frame_rate.den, frame_rate.num}) : 0);
             pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
+
+
+        av_log(NULL, AV_LOG_ERROR, "-davidww-decodeprocess-get_video_frame  ------------  pts:%f   pts:%lld   key:%d  pict_type:%d", pts , frame->pts,frame->key_frame, frame->pict_type );
+
+//        if(frame->key_frame == 1){
+            double t1 = av_gettime_relative() / 1000000.0;
             ret = queue_picture(ffp, frame, pts, duration, frame->pkt_pos, is->viddec.pkt_serial);
-        av_log(NULL, AV_LOG_ERROR, "-davidww-decodeprocess-queue_picture  ret：%d", ret );
+            double t2 = av_gettime_relative() / 1000000.0;
+            quePicTotalTime += (t2 - t1);
+            quePicCount += 1;
+            av_log(NULL, AV_LOG_ERROR, "-davidww-decodeprocess-queue_picture ret：%d  queue_picture time:%f  average_queue_picture time:%f quePicCount：%d", ret, (t2 - t1), quePicTotalTime / quePicCount, quePicCount);
+            //  ~~~~ average_queue_picture time:0.051731
+//        }
+
         av_frame_unref(frame);
 #if CONFIG_AVFILTER
         }
@@ -3070,6 +3098,13 @@ static int stream_component_open(FFPlayer *ffp, int stream_index)
     }
     av_codec_set_lowres(avctx, stream_lowres);
 
+    switch (avctx->codec_type) {
+        case AVMEDIA_TYPE_AUDIO   :  av_log(avctx, AV_LOG_WARNING, "davidww-decodeprocess--audio decoder: %s", codec->name) ; break;
+        case AVMEDIA_TYPE_SUBTITLE:  av_log(avctx, AV_LOG_WARNING, "davidww-decodeprocess--subtitle decoder: %s", codec->name) ; break;
+        case AVMEDIA_TYPE_VIDEO   :  av_log(avctx, AV_LOG_WARNING, "davidww-decodeprocess--video decoder: %s", codec->name) ; break;
+        default: break;
+    }
+
 #if FF_API_EMU_EDGE
     if(stream_lowres) avctx->flags |= CODEC_FLAG_EMU_EDGE;
 #endif
@@ -3231,9 +3266,9 @@ static int stream_component_open(FFPlayer *ffp, int stream_index)
             //  AVDISCARD_NONREF  --> total frame 501   ----> 39.332
             //  AVDISCARD_BIDIR  --> total frame 405    ----> 32.405
             //  AVDISCARD_NONINTRA  --> total frame 37  ----> ~29
-//            avctx->skip_frame       = AVDISCARD_DEFAULT;
-//            avctx->skip_loop_filter = AVDISCARD_DEFAULT;
-//            avctx->skip_idct        = AVDISCARD_DEFAULT;
+//            avctx->skip_frame       = AVDISCARD_BIDIR;
+//            avctx->skip_loop_filter = AVDISCARD_ALL;
+//            avctx->skip_idct        = AVDISCARD_ALL;
 
 
             break;

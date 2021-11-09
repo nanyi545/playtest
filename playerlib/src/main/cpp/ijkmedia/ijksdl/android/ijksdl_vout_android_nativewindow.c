@@ -215,22 +215,20 @@ static int func_display_overlay_l(SDL_Vout *vout, SDL_VoutOverlay *overlay)
     int fall_back_ret;
 
     // davidww-display  ---> skip frames ...
-    if(totalFrame%2==0){
-        fall_back_ret = SDL_Android_NativeWindow_display_l(native_window, overlay);
-    }  else {
-        fall_back_ret = 0;
-    }
+//    if(totalFrame%2==0){
+//        fall_back_ret = SDL_Android_NativeWindow_display_l(native_window, overlay);
+//    }  else {
+//        fall_back_ret = 0;
+//    }
 
     // davidww-display  ---> do not skip frames ...
-//    fall_back_ret = SDL_Android_NativeWindow_display_l(native_window, overlay);
-
+    fall_back_ret = SDL_Android_NativeWindow_display_l(native_window, overlay);
 
     double time2 = av_gettime_relative() / 1000000.0;
     double frameTime = (time2 - time);
     totalFrameTime = totalFrameTime + frameTime;
     double averageFrameTime = totalFrameTime / totalFrame;
-
-    ALOGE("davidww-display   func_display_overlay_l 4    diff:%f    totalFrame:%d    frame display time:%f    averageFrameTime:%f", diff, totalFrame, frameTime ,averageFrameTime );
+//    ALOGE("davidww-display   func_display_overlay_l 4    diff:%f    totalFrame:%d    frame display time:%f    averageFrameTime:%f", diff, totalFrame, frameTime ,averageFrameTime );
 
     return fall_back_ret;
 }
